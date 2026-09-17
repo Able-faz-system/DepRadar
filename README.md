@@ -26,24 +26,26 @@ flowchart LR
     Router -.get_bounty / get_claim.-> Dashboard[Dashboard]
 
     classDef live    fill:#134e4a,stroke:#2dd4bf,color:#e6fffa;
-    classDef partial fill:#1e3a5f,stroke:#38bdf8,color:#bae6fd;
     classDef planned fill:#1e293b,stroke:#475569,color:#94a3b8,stroke-dasharray:4;
-    class Router live;
-    class Scanner partial;
+    class Router,Scanner live;
     class Crawler,Drips,Dashboard planned;
 ```
 
-**Solid teal** = live on testnet.  **Solid blue** = partially built (modules
-landing).  **Dashed** = planned — see [Status & Roadmap](#status--roadmap).
+**Solid teal** = live / substantially complete.  **Dashed** = planned — see
+[Status & Roadmap](#status--roadmap).
 
 - **Crawler** walks registries (npm, PyPI, crates.io, and others as modules
   land) for new packages, new versions, and metadata changes.
 - **Scanner** evaluates what the crawler surfaces against three detection
   classes: known-CVE matching, typosquat similarity, and behavioral
   analysis (install scripts, obfuscation, anomalous permission requests).
-  The typosquat subsystem has its first two modules shipped — a curated
-  popular-package reference dataset and a Levenshtein-based nearest-match
-  scorer (`src/typosquat/`).
+  The typosquat subsystem is substantially complete — popular-package
+  reference dataset, Levenshtein edit-distance scorer, homoglyph signal, and
+  a combined scoring API that ties all three signals into a single
+  `score_package()` call (`src/typosquat/`). CVE matching has its first
+  module too: an OSV API client (`src/cve/osv_client.rs`) that queries
+  [osv.dev](https://osv.dev) for a pinned package version. What remains is
+  the crawler wiring that feeds real package names into these scorers.
 - **Bounty Router** is the Soroban smart contract in this repo
   (`contracts/deprader_router/`). It's the trust boundary: it locks funds
   against a finding, records who claimed it, and pays out — independent of
@@ -108,15 +110,16 @@ verified, with the full trail auditable by anyone.
 | Full `create_bounty` → `submit_claim` → `release` lifecycle run and verified against the live testnet contract | _(predates issue tracker)_ |
 | Popular-package reference dataset — npm and PyPI top-1000 curated lists (`data/popular-packages/`) and dataset loader (`src/typosquat/dataset.rs`) | [#1](https://github.com/ALLEN-AYODEJI/DepRadar/pull/1) |
 | Levenshtein edit-distance scorer and `nearest_match` for typosquat detection (`src/typosquat/distance.rs`) | [#2](https://github.com/ALLEN-AYODEJI/DepRadar/pull/2) |
+| Homoglyph (lookalike-character) signal — Unicode confusable normalization and `homoglyph_impersonation` (`src/typosquat/homoglyph.rs`) | [#7](https://github.com/ALLEN-AYODEJI/DepRadar/pull/7) |
+| Testnet read client — CLI wrapper around `get_bounty` / `get_claim` against the live contract (`client/`) | [#9](https://github.com/ALLEN-AYODEJI/DepRadar/pull/9) |
+| OSV API client — `query_osv(package, ecosystem, version)` against [osv.dev](https://osv.dev) (`src/cve/osv_client.rs`) | [#10](https://github.com/ALLEN-AYODEJI/DepRadar/pull/10) |
+| Combined typosquat scoring API — `score_package()` merges Levenshtein + homoglyph signals; `cargo run --bin scan` CLI (`src/typosquat/scanner.rs`) | [#11](https://github.com/ALLEN-AYODEJI/DepRadar/pull/11) |
 
 ### Open
 
-- Homoglyph / visual-similarity detection (IDN lookalike package names)
-- Combined scoring API — merge Levenshtein + homoglyph + keyboard-adjacency signals into a single typosquat score
-- OSV matcher — map discovered packages against the [OSV](https://osv.dev) vulnerability database
-- Testnet read client — thin CLI/library wrapper around `get_bounty` / `get_claim` for scripting and dashboard use
 - Crawler modules (per-registry: npm, PyPI, crates.io, …)
 - Full scanner pipeline wiring (crawler → scanner → `create_bounty`)
+- Behavioral analysis (install scripts, obfuscation, anomalous permission requests)
 - Dashboard (read-only contract state viewer)
 - Drips payout integration
 
@@ -130,6 +133,12 @@ landed, module by module.
 Thanks to everyone who has shipped code into this repo:
 
 [![Contributors](https://contrib.rocks/image?repo=ALLEN-AYODEJI/DepRadar)](https://github.com/ALLEN-AYODEJI/DepRadar/graphs/contributors)
+
+| Contributor | What they shipped |
+|---|---|
+| [ALLEN-AYODEJI](https://github.com/ALLEN-AYODEJI) | Bounty Router contract, typosquat dataset, edit-distance scorer, homoglyph signal, testnet read client, OSV client |
+| [Emeraldson001](https://github.com/Emeraldson001) | Combined typosquat scoring API and `scan` CLI binary ([#11](https://github.com/ALLEN-AYODEJI/DepRadar/pull/11)) |
+| [MamaLove360](https://github.com/MamaLove360) | OSV API client for CVE matching ([#10](https://github.com/ALLEN-AYODEJI/DepRadar/pull/10)) |
 
 Want to add your name to this list? Pick an open issue and read
 [CONTRIBUTING.md](CONTRIBUTING.md) first.
