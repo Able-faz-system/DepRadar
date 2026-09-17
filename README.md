@@ -25,21 +25,25 @@ flowchart LR
     Router -->|release: payout| Drips[Drips]
     Router -.get_bounty / get_claim.-> Dashboard[Dashboard]
 
-    classDef live fill:#134e4a,stroke:#2dd4bf,color:#e6fffa;
+    classDef live    fill:#134e4a,stroke:#2dd4bf,color:#e6fffa;
+    classDef partial fill:#1e3a5f,stroke:#38bdf8,color:#bae6fd;
     classDef planned fill:#1e293b,stroke:#475569,color:#94a3b8,stroke-dasharray:4;
     class Router live;
-    class Crawler,Scanner,Drips,Dashboard planned;
+    class Scanner partial;
+    class Crawler,Drips,Dashboard planned;
 ```
 
-Only the **Bounty Router** (solid teal) is built and live on Stellar
-testnet today. The crawler, scanner, Drips integration, and dashboard
-(dashed) are planned — see [Status & Roadmap](#status--roadmap).
+**Solid teal** = live on testnet.  **Solid blue** = partially built (modules
+landing).  **Dashed** = planned — see [Status & Roadmap](#status--roadmap).
 
 - **Crawler** walks registries (npm, PyPI, crates.io, and others as modules
   land) for new packages, new versions, and metadata changes.
 - **Scanner** evaluates what the crawler surfaces against three detection
   classes: known-CVE matching, typosquat similarity, and behavioral
   analysis (install scripts, obfuscation, anomalous permission requests).
+  The typosquat subsystem has its first two modules shipped — a curated
+  popular-package reference dataset and a Levenshtein-based nearest-match
+  scorer (`src/typosquat/`).
 - **Bounty Router** is the Soroban smart contract in this repo
   (`contracts/deprader_router/`). It's the trust boundary: it locks funds
   against a finding, records who claimed it, and pays out — independent of
@@ -96,15 +100,23 @@ verified, with the full trail auditable by anyone.
 
 ## Status & Roadmap
 
-**Done**
-- Bounty Router contract (`create_bounty` / `submit_claim` / `release`),
-  unit-tested and deployed to Stellar testnet
-- Full `create_bounty` → `submit_claim` → `release` cycle run and verified
-  against the live testnet contract
+### Done
 
-**Open**
-- Crawler modules (per-registry)
-- Scanner modules (CVE matching, typosquat detection, behavioral analysis)
+| What | PR |
+|---|---|
+| Bounty Router contract (`create_bounty` / `submit_claim` / `release`), unit-tested and deployed to Stellar testnet | _(predates issue tracker)_ |
+| Full `create_bounty` → `submit_claim` → `release` lifecycle run and verified against the live testnet contract | _(predates issue tracker)_ |
+| Popular-package reference dataset — npm and PyPI top-1000 curated lists (`data/popular-packages/`) and dataset loader (`src/typosquat/dataset.rs`) | [#1](https://github.com/ALLEN-AYODEJI/DepRadar/pull/1) |
+| Levenshtein edit-distance scorer and `nearest_match` for typosquat detection (`src/typosquat/distance.rs`) | [#2](https://github.com/ALLEN-AYODEJI/DepRadar/pull/2) |
+
+### Open
+
+- Homoglyph / visual-similarity detection (IDN lookalike package names)
+- Combined scoring API — merge Levenshtein + homoglyph + keyboard-adjacency signals into a single typosquat score
+- OSV matcher — map discovered packages against the [OSV](https://osv.dev) vulnerability database
+- Testnet read client — thin CLI/library wrapper around `get_bounty` / `get_claim` for scripting and dashboard use
+- Crawler modules (per-registry: npm, PyPI, crates.io, …)
+- Full scanner pipeline wiring (crawler → scanner → `create_bounty`)
 - Dashboard (read-only contract state viewer)
 - Drips payout integration
 
@@ -112,6 +124,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to pick up a module, and
 [open issues](https://github.com/ALLEN-AYODEJI/DepRadar/issues) for what's
 currently up for grabs. [PROGRESS.md](PROGRESS.md) tracks what's actually
 landed, module by module.
+
+## Contributors
+
+Thanks to everyone who has shipped code into this repo:
+
+[![Contributors](https://contrib.rocks/image?repo=ALLEN-AYODEJI/DepRadar)](https://github.com/ALLEN-AYODEJI/DepRadar/graphs/contributors)
+
+Want to add your name to this list? Pick an open issue and read
+[CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 ## License
 

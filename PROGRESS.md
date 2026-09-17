@@ -26,3 +26,27 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
     against the live testnet contract using the native XLM Stellar Asset
     Contract as the test token, and confirmed via `get_bounty` / `get_claim`
     reads and on-chain transfer events.
+
+### Typosquat — popular-package reference dataset and loader
+
+- **What:** Curated reference lists of the npm and PyPI top-1000 packages
+  (`data/popular-packages/npm-top1000.json` and
+  `data/popular-packages/pypi-top1000.json`) and the dataset loader module
+  (`src/typosquat/dataset.rs`) that reads them into the typosquat pipeline.
+  These lists are the ground truth a submitted package name is compared
+  against to detect squatting candidates.
+- **By:** ALLEN-AYODEJI
+- **Closes:** [PR #1](https://github.com/ALLEN-AYODEJI/DepRadar/pull/1)
+- **Status:** Merged.
+
+### Typosquat — Levenshtein edit-distance scorer and `nearest_match`
+
+- **What:** `src/typosquat/distance.rs` — a Levenshtein edit-distance
+  implementation and a `nearest_match(name, dataset)` function that returns
+  the closest package name from the popular-package reference lists along
+  with its edit distance. This is the first scoring signal in the typosquat
+  detection pipeline; subsequent signals (homoglyph, keyboard-adjacency)
+  will be merged into a combined scorer on top of this foundation.
+- **By:** ALLEN-AYODEJI
+- **Closes:** [PR #2](https://github.com/ALLEN-AYODEJI/DepRadar/pull/2)
+- **Status:** Merged.
