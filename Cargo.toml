@@ -7,6 +7,23 @@ members = [
 [workspace.dependencies]
 soroban-sdk = "22.0.0"
 
+# Root crate: the off-chain side of DepRadar (crawler + scanner modules).
+# The on-chain bounty router lives in its own crate under contracts/.
+[package]
+name = "deprader"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "DepRadar off-chain crawler/scanner toolkit"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
 [profile.release]
 opt-level = "z"
 overflow-checks = true

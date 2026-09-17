@@ -1,4 +1,6 @@
 /target
+node_modules/
+dist/
 
 # Stellar CLI local config and identities — never commit secret keys
 .stellar/
