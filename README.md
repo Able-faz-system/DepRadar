@@ -125,7 +125,8 @@ verified, with the full trail auditable by anyone.
 |---|---|
 | Bounty Router contract (`create_bounty` / `submit_claim` / `release`), unit-tested and deployed to Stellar testnet | _(predates issue tracker)_ |
 | Full `create_bounty` → `submit_claim` → `release` lifecycle run and verified against the live testnet contract | _(predates issue tracker)_ |
-| Hardened Bounty Router v2 — multiple claims per bounty, `reject_claim`, deadlines + `cancel_bounty` refunds, contract-assigned IDs, events, storage TTL management, two-step admin rotation; redeployed and verified on testnet | _(this PR)_ |
+| Repository health — MIT license, SECURITY.md, Code of Conduct, PR/issue templates, CODEOWNERS, Dependabot, CI split into fmt/clippy/test/wasm/client jobs, weekly `cargo audit` + `npm audit` | [`41903c3`](https://github.com/DepRadarOrg/DepRadar/commit/41903c3) |
+| Hardened Bounty Router v2 — multiple claims per bounty, `reject_claim`, deadlines + `cancel_bounty` refunds, contract-assigned IDs, events, storage TTL management, two-step admin rotation; redeployed and verified on testnet | [`79326f2`](https://github.com/DepRadarOrg/DepRadar/commit/79326f2) |
 | Popular-package reference dataset — npm and PyPI top-1000 curated lists (`data/popular-packages/`) and dataset loader (`src/typosquat/dataset.rs`) | [#1](https://github.com/DepRadarOrg/DepRadar/pull/1) |
 | Levenshtein edit-distance scorer and `nearest_match` for typosquat detection (`src/typosquat/distance.rs`) | [#2](https://github.com/DepRadarOrg/DepRadar/pull/2) |
 | Homoglyph (lookalike-character) signal — Unicode confusable normalization and `homoglyph_impersonation` (`src/typosquat/homoglyph.rs`) | [#7](https://github.com/DepRadarOrg/DepRadar/pull/7) |
