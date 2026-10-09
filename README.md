@@ -4,8 +4,8 @@
 
 **A decentralized security scanner for open-source dependency graphs — funded bounties, not empty advisories.**
 
-[![CI](https://github.com/ALLEN-AYODEJI/DepRadar/actions/workflows/ci.yml/badge.svg)](https://github.com/ALLEN-AYODEJI/DepRadar/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-TBD-lightgrey)](#license)
+[![CI](https://github.com/DepRadarOrg/DepRadar/actions/workflows/ci.yml/badge.svg)](https://github.com/DepRadarOrg/DepRadar/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Network](https://img.shields.io/badge/network-Stellar%20Testnet-blue)](https://stellar.expert/explorer/testnet/contract/CBFLUY6NB3JOQDEUOF2JG5TL3UD7GCQ7APUJ6EHNNSUJLUELHSGIG675)
 
 ## Mission
@@ -108,12 +108,12 @@ verified, with the full trail auditable by anyone.
 |---|---|
 | Bounty Router contract (`create_bounty` / `submit_claim` / `release`), unit-tested and deployed to Stellar testnet | _(predates issue tracker)_ |
 | Full `create_bounty` → `submit_claim` → `release` lifecycle run and verified against the live testnet contract | _(predates issue tracker)_ |
-| Popular-package reference dataset — npm and PyPI top-1000 curated lists (`data/popular-packages/`) and dataset loader (`src/typosquat/dataset.rs`) | [#1](https://github.com/ALLEN-AYODEJI/DepRadar/pull/1) |
-| Levenshtein edit-distance scorer and `nearest_match` for typosquat detection (`src/typosquat/distance.rs`) | [#2](https://github.com/ALLEN-AYODEJI/DepRadar/pull/2) |
-| Homoglyph (lookalike-character) signal — Unicode confusable normalization and `homoglyph_impersonation` (`src/typosquat/homoglyph.rs`) | [#7](https://github.com/ALLEN-AYODEJI/DepRadar/pull/7) |
-| Testnet read client — CLI wrapper around `get_bounty` / `get_claim` against the live contract (`client/`) | [#9](https://github.com/ALLEN-AYODEJI/DepRadar/pull/9) |
-| OSV API client — `query_osv(package, ecosystem, version)` against [osv.dev](https://osv.dev) (`src/cve/osv_client.rs`) | [#10](https://github.com/ALLEN-AYODEJI/DepRadar/pull/10) |
-| Combined typosquat scoring API — `score_package()` merges Levenshtein + homoglyph signals; `cargo run --bin scan` CLI (`src/typosquat/scanner.rs`) | [#11](https://github.com/ALLEN-AYODEJI/DepRadar/pull/11) |
+| Popular-package reference dataset — npm and PyPI top-1000 curated lists (`data/popular-packages/`) and dataset loader (`src/typosquat/dataset.rs`) | [#1](https://github.com/DepRadarOrg/DepRadar/pull/1) |
+| Levenshtein edit-distance scorer and `nearest_match` for typosquat detection (`src/typosquat/distance.rs`) | [#2](https://github.com/DepRadarOrg/DepRadar/pull/2) |
+| Homoglyph (lookalike-character) signal — Unicode confusable normalization and `homoglyph_impersonation` (`src/typosquat/homoglyph.rs`) | [#7](https://github.com/DepRadarOrg/DepRadar/pull/7) |
+| Testnet read client — CLI wrapper around `get_bounty` / `get_claim` against the live contract (`client/`) | [#9](https://github.com/DepRadarOrg/DepRadar/pull/9) |
+| OSV API client — `query_osv(package, ecosystem, version)` against [osv.dev](https://osv.dev) (`src/cve/osv_client.rs`) | [#10](https://github.com/DepRadarOrg/DepRadar/pull/10) |
+| Combined typosquat scoring API — `score_package()` merges Levenshtein + homoglyph signals; `cargo run --bin scan` CLI (`src/typosquat/scanner.rs`) | [#11](https://github.com/DepRadarOrg/DepRadar/pull/11) |
 
 ### Open
 
@@ -124,7 +124,7 @@ verified, with the full trail auditable by anyone.
 - Drips payout integration
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to pick up a module, and
-[open issues](https://github.com/ALLEN-AYODEJI/DepRadar/issues) for what's
+[open issues](https://github.com/DepRadarOrg/DepRadar/issues) for what's
 currently up for grabs. [PROGRESS.md](PROGRESS.md) tracks what's actually
 landed, module by module.
 
@@ -132,17 +132,23 @@ landed, module by module.
 
 Thanks to everyone who has shipped code into this repo:
 
-[![Contributors](https://contrib.rocks/image?repo=ALLEN-AYODEJI/DepRadar)](https://github.com/ALLEN-AYODEJI/DepRadar/graphs/contributors)
+[![Contributors](https://contrib.rocks/image?repo=DepRadarOrg/DepRadar)](https://github.com/DepRadarOrg/DepRadar/graphs/contributors)
 
 | Contributor | What they shipped |
 |---|---|
-| [ALLEN-AYODEJI](https://github.com/ALLEN-AYODEJI) | Bounty Router contract, typosquat dataset, edit-distance scorer, homoglyph signal, testnet read client, OSV client |
-| [Emeraldson001](https://github.com/Emeraldson001) | Combined typosquat scoring API and `scan` CLI binary ([#11](https://github.com/ALLEN-AYODEJI/DepRadar/pull/11)) |
-| [MamaLove360](https://github.com/MamaLove360) | OSV API client for CVE matching ([#10](https://github.com/ALLEN-AYODEJI/DepRadar/pull/10)) |
+| [ALLEN-AYODEJI](https://github.com/ALLEN-AYODEJI) | Bounty Router contract, typosquat dataset, edit-distance scorer, homoglyph signal, testnet read client |
+| [Emeraldson001](https://github.com/Emeraldson001) | Combined typosquat scoring API and `scan` CLI binary ([#11](https://github.com/DepRadarOrg/DepRadar/pull/11)) |
+| [MamaLove360](https://github.com/MamaLove360) | OSV API client for CVE matching ([#10](https://github.com/DepRadarOrg/DepRadar/pull/10)) |
 
 Want to add your name to this list? Pick an open issue and read
 [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
+## Security
+
+Found a vulnerability in DepRadar itself? Please report it privately — see
+[SECURITY.md](SECURITY.md). Participation in this project is governed by the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## License
 
-Not yet finalized — a license will be added before this repo is public.
+DepRadar is released under the [MIT License](LICENSE).

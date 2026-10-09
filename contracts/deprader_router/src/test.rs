@@ -5,7 +5,10 @@ use soroban_sdk::{
     Address, Env, String,
 };
 
-fn create_token_contract<'a>(env: &Env, admin: &Address) -> (TokenClient<'a>, StellarAssetClient<'a>) {
+fn create_token_contract<'a>(
+    env: &Env,
+    admin: &Address,
+) -> (TokenClient<'a>, StellarAssetClient<'a>) {
     let sac = env.register_stellar_asset_contract_v2(admin.clone());
     (
         TokenClient::new(env, &sac.address()),
@@ -66,7 +69,13 @@ fn test_submit_claim_happy_path() {
 
     let bounty_id = 1u64;
     let issue_ref = String::from_str(&env, "org/repo#123");
-    client.create_bounty(&creator, &bounty_id, &issue_ref, &400, &token_client.address);
+    client.create_bounty(
+        &creator,
+        &bounty_id,
+        &issue_ref,
+        &400,
+        &token_client.address,
+    );
 
     let proof_ref = String::from_str(&env, "org/repo#123-pr-456");
     client.submit_claim(&bounty_id, &claimant, &proof_ref);
@@ -115,7 +124,13 @@ fn setup<'a>(
     let bounty_id = 1u64;
     let issue_ref = String::from_str(env, "org/repo#123");
     let amount: i128 = 400;
-    client.create_bounty(creator, &bounty_id, &issue_ref, &amount, &token_client.address);
+    client.create_bounty(
+        creator,
+        &bounty_id,
+        &issue_ref,
+        &amount,
+        &token_client.address,
+    );
 
     if with_claim {
         let proof_ref = String::from_str(env, "org/repo#123-pr-456");
@@ -153,7 +168,8 @@ fn test_release_no_claim() {
     let admin = Address::generate(&env);
     let creator = Address::generate(&env);
     let claimant = Address::generate(&env);
-    let (client, _token_client, bounty_id, _amount) = setup(&env, &admin, &creator, &claimant, false);
+    let (client, _token_client, bounty_id, _amount) =
+        setup(&env, &admin, &creator, &claimant, false);
 
     let result = client.try_release(&admin, &bounty_id);
 
@@ -168,7 +184,8 @@ fn test_release_twice() {
     let admin = Address::generate(&env);
     let creator = Address::generate(&env);
     let claimant = Address::generate(&env);
-    let (client, _token_client, bounty_id, _amount) = setup(&env, &admin, &creator, &claimant, true);
+    let (client, _token_client, bounty_id, _amount) =
+        setup(&env, &admin, &creator, &claimant, true);
 
     client.release(&admin, &bounty_id);
     let result = client.try_release(&admin, &bounty_id);

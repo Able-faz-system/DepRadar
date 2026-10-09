@@ -59,7 +59,10 @@ impl fmt::Display for ScanResult {
             )?;
         }
         if let Some(name) = &self.homoglyph_match {
-            write!(f, "\n  - homoglyph impersonation of popular package \"{name}\"")?;
+            write!(
+                f,
+                "\n  - homoglyph impersonation of popular package \"{name}\""
+            )?;
         }
         Ok(())
     }
@@ -73,8 +76,8 @@ pub fn score_package(name: &str) -> ScanResult {
     let dataset = load_popular_packages();
 
     let (nearest_name, distance) = nearest_match(name, &dataset);
-    let distance_match = (distance > 0 && distance <= DISTANCE_THRESHOLD)
-        .then_some((nearest_name, distance));
+    let distance_match =
+        (distance > 0 && distance <= DISTANCE_THRESHOLD).then_some((nearest_name, distance));
 
     let homoglyph_match = homoglyph_impersonation(name, &dataset);
 
@@ -112,10 +115,7 @@ mod tests {
     fn distance_only_match_is_flagged_with_reason() {
         // One inserted 's' — no homoglyphs involved.
         let result = score_package("expresss");
-        assert_eq!(
-            result.distance_match,
-            Some(("express".to_string(), 1))
-        );
+        assert_eq!(result.distance_match, Some(("express".to_string(), 1)));
         assert_eq!(result.homoglyph_match, None);
         assert!(result.is_likely_typosquat());
     }

@@ -1,0 +1,9 @@
+# GitHub requests a review from these owners whenever a pull request touches
+# a matching path. The LAST matching rule wins.
+
+*                    @ALLEN-AYODEJI
+
+/contracts/          @ALLEN-AYODEJI
+/src/                @ALLEN-AYODEJI
+/client/             @ALLEN-AYODEJI
+/.github/            @ALLEN-AYODEJI
