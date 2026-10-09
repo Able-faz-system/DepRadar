@@ -13,6 +13,7 @@ soroban-sdk = "22.0.0"
 name = "deprader"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 publish = false
 description = "DepRadar off-chain crawler/scanner toolkit"
 

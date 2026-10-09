@@ -13,12 +13,10 @@
 //! ordering or count.
 
 /// Raw JSON text of the npm popular-package list, embedded at compile time.
-const NPM_TOP_PACKAGES_JSON: &str =
-    include_str!("../../data/popular-packages/npm-top1000.json");
+const NPM_TOP_PACKAGES_JSON: &str = include_str!("../../data/popular-packages/npm-top1000.json");
 
 /// Raw JSON text of the PyPI popular-package list, embedded at compile time.
-const PYPI_TOP_PACKAGES_JSON: &str =
-    include_str!("../../data/popular-packages/pypi-top1000.json");
+const PYPI_TOP_PACKAGES_JSON: &str = include_str!("../../data/popular-packages/pypi-top1000.json");
 
 /// Loads the bundled npm and PyPI popular-package lists and returns them as a
 /// single combined list.

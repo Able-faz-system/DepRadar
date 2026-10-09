@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/DepRadarOrg/DepRadar/security/advisories/new
+    about: Please report vulnerabilities privately, not as a public issue.
+  - name: Contributing Guide
+    url: https://github.com/DepRadarOrg/DepRadar/blob/main/CONTRIBUTING.md
+    about: Read this before picking up an issue or opening a pull request.

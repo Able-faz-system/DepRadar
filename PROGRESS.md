@@ -144,8 +144,8 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
   reflects the runner's network access rather than a bug in the client. Also
   a plain unit test that `Ecosystem::as_osv_str()` matches OSV's documented
   ecosystem names for `npm`/`PyPI`/`crates.io`.
-- **By:** ALLEN-AYODEJI
-- **Closes:** N/A (prep for the CVE matching scanner module)
+- **By:** MamaLove360 ([#10](https://github.com/DepRadarOrg/DepRadar/pull/10))
+- **Closes:** #5
 - **Status:** Merged. `cargo test --workspace --locked` passes, including a
   live network call to `api.osv.dev` confirming the known-vulnerable test
   case.
@@ -178,8 +178,33 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
   homoglyph impersonation of it) — the concrete case the issue asked for.
   Two more tests check `Display` output for the both-signals and no-signal
   cases.
-- **By:** ALLEN-AYODEJI
+- **By:** Emeraldson001 ([#11](https://github.com/DepRadarOrg/DepRadar/pull/11))
 - **Closes:** #4
-- **Status:** Pushed on `typosquat-combined-scoring`, pending review/merge.
-  Depended on #2 (dataset/distance) and the homoglyph signal (#7), both
-  already merged.
+- **Status:** Merged. Built on the dataset/distance work (#1, #2) and the
+  homoglyph signal (#7).
+
+### Repository health — license, security policy, CI hardening
+
+- **What:** Licenses the project under MIT (`LICENSE`, plus `license` fields
+  in both Cargo manifests and `client/package.json`). Adds `SECURITY.md`
+  (private disclosure via GitHub advisories, scope covering contract and
+  scanner), `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), a PR template,
+  bug/feature issue templates, `CODEOWNERS`, and Dependabot for Cargo, npm
+  and GitHub Actions. CI now runs `cargo fmt --check`, `cargo clippy -D
+  warnings`, the test suite, a `wasm32v1-none` release build of the
+  contract, and the client typecheck as separate jobs; a new weekly
+  `Dependency Audit` workflow runs `cargo audit` and `npm audit`. Fixes the
+  one existing clippy lint (`unnecessary_map_or` in `distance.rs`) and
+  applies `cargo fmt`. Bumps the client's `@stellar/stellar-sdk` lock to
+  17.2.1 to clear high-severity advisories in its transitive `axios`
+  dependency. README links now point at `DepRadarOrg/DepRadar`, and the
+  contributor attributions in this file are corrected to match the merged
+  PRs.
+- **Verified:** `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test
+  --workspace --locked` (33 tests) and the wasm build all pass locally;
+  `npm audit --omit=dev` reports 0 vulnerabilities; the client still reads
+  `get_bounty(1)` / `get_claim(1)` correctly from the live testnet contract
+  on the upgraded SDK.
+- **By:** ALLEN-AYODEJI
+- **Closes:** N/A (maintenance)
+- **Status:** Merged.
