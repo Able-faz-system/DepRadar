@@ -319,3 +319,22 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** ALLEN-AYODEJI
 - **Closes:** N/A
 - **Status:** Merged.
+
+### scanner — `Pipfile.lock` parser
+
+- **What:** Starts the lockfile-parsing side of the scanner. Adds
+  `src/model.rs` with a minimal shared `Dependency { name, version,
+  ecosystem, direct, dev }` (reusing the OSV client's `Ecosystem` enum) for
+  every parser to return, and a new `src/lockfile/` module with a common
+  `ParseError`. `lockfile::pypi::parse_pipfile_lock(&str)` reads a Pipenv
+  `Pipfile.lock`: both the `default` and `develop` sections, with the `==`
+  (or `===`) pin stripped from each version and `develop` entries marked
+  `dev: true`. VCS/path entries with no `version` keep `version: None`.
+  `Pipfile.lock` doesn't distinguish declared from transitive packages, so
+  `direct` is `false`.
+- **Tests:** a fixture (`tests/fixtures/Pipfile.lock`) with runtime, dev and
+  git-sourced packages — asserts names, stripped versions and the dev flag;
+  missing sections parse as empty; invalid JSON is an error.
+- **By:** Barbieple-Devstem
+- **Closes:** #66
+- **Status:** In review.
