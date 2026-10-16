@@ -44,8 +44,11 @@ pub fn levenshtein_distance(a: &str, b: &str) -> usize {
     prev[b.len()]
 }
 
-/// Returns the name in `dataset` with the smallest [`levenshtein_distance`] to
-/// `candidate`, together with that distance.
+/// Returns the name in `dataset` with the smallest distance to `candidate`,
+/// together with that distance.
+///
+/// Distance is [`name_distance`], which is [`levenshtein_distance`] for plain
+/// names but compares npm scoped names scope-to-scope and name-to-name.
 ///
 /// On a tie the earliest entry in `dataset` wins. An empty `dataset` yields
 /// `(String::new(), usize::MAX)`.
@@ -53,7 +56,7 @@ pub fn nearest_match(candidate: &str, dataset: &[String]) -> (String, usize) {
     let mut best: Option<(&String, usize)> = None;
 
     for name in dataset {
-        let distance = levenshtein_distance(candidate, name);
+        let distance = name_distance(candidate, name);
         if best.is_none_or(|(_, best_distance)| distance < best_distance) {
             best = Some((name, distance));
             if distance == 0 {

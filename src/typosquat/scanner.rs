@@ -12,6 +12,7 @@ use std::fmt;
 use super::dataset::load_popular_packages;
 use super::distance::nearest_match;
 use super::homoglyph::homoglyph_impersonation;
+use super::normalize::normalize_name;
 
 /// Maximum edit distance from a popular package name that counts as
 /// "suspiciously close" rather than coincidental.
@@ -72,14 +73,17 @@ impl fmt::Display for ScanResult {
 /// typosquat signals and returns why (if at all) it looks suspicious.
 ///
 /// Loads [`load_popular_packages`] internally, so callers only need a name.
+/// The name is lowercased ([`normalize_name`]) before scoring; `candidate`
+/// in the result keeps the caller's original spelling.
 pub fn score_package(name: &str) -> ScanResult {
     let dataset = load_popular_packages();
+    let normalized = normalize_name(name);
 
-    let (nearest_name, distance) = nearest_match(name, &dataset);
+    let (nearest_name, distance) = nearest_match(&normalized, &dataset);
     let distance_match =
         (distance > 0 && distance <= DISTANCE_THRESHOLD).then_some((nearest_name, distance));
 
-    let homoglyph_match = homoglyph_impersonation(name, &dataset);
+    let homoglyph_match = homoglyph_impersonation(&normalized, &dataset);
 
     ScanResult {
         candidate: name.to_string(),
@@ -97,6 +101,13 @@ mod tests {
         let result = score_package("react");
         assert_eq!(result.distance_match, None);
         assert_eq!(result.homoglyph_match, None);
+        assert!(!result.is_likely_typosquat());
+    }
+
+    #[test]
+    fn uppercase_popular_package_is_normalized_to_exact_match() {
+        let result = score_package("React");
+        assert_eq!(result.candidate, "React");
         assert!(!result.is_likely_typosquat());
     }
 

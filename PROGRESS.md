@@ -319,3 +319,19 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** ALLEN-AYODEJI
 - **Closes:** N/A
 - **Status:** Merged.
+
+### typosquat scanner — npm name normalization (case and scope)
+
+- **What:** Adds `src/typosquat/normalize.rs`. `split_npm_name(&str)`
+  returns `(Option<scope>, bare_name)` (`@types/node` → `(Some("types"),
+  "node")`). `normalize_name` lowercases a candidate, and `score_package`
+  now scores the lowercased name, so `React` is an exact match for `react`
+  rather than a one-edit typo. `name_distance` compares scoped names
+  scope-to-scope plus name-to-name instead of as one raw string, and
+  `nearest_match` now uses it. How scoped names are compared is documented
+  in the module docs.
+- **Tests:** `@types/node` split, `React` → `react`, names without a scope,
+  and scope-aware distances (`@typess/node` vs `@types/node` → 1).
+- **By:** The-moving-man
+- **Closes:** #26
+- **Status:** In review.
