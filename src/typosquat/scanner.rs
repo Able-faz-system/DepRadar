@@ -12,6 +12,7 @@ use std::fmt;
 use super::dataset::load_popular_packages;
 use super::distance::nearest_match;
 use super::homoglyph::homoglyph_impersonation;
+use super::keyboard::keyboard_typo;
 use super::normalize::normalize_name;
 
 /// Maximum edit distance from a popular package name that counts as
@@ -37,6 +38,11 @@ pub struct ScanResult {
     /// lookalike characters are folded back to Latin, is a popular package:
     /// the matched name.
     pub homoglyph_match: Option<String>,
+    /// True when the distance match is a single substitution of a key
+    /// adjacent on a QWERTY keyboard ([`keyboard_typo`]) — the most likely
+    /// accidental install. Reported as an extra reason only; it does not
+    /// change whether the candidate is flagged.
+    pub keyboard_typo: bool,
 }
 
 impl ScanResult {
@@ -58,6 +64,12 @@ impl fmt::Display for ScanResult {
                 f,
                 "\n  - edit distance {distance} from popular package \"{name}\""
             )?;
+            if self.keyboard_typo {
+                write!(
+                    f,
+                    "\n  - adjacent-key typo of \"{name}\" (likely accidental install)"
+                )?;
+            }
         }
         if let Some(name) = &self.homoglyph_match {
             write!(
@@ -85,10 +97,15 @@ pub fn score_package(name: &str) -> ScanResult {
 
     let homoglyph_match = homoglyph_impersonation(&normalized, &dataset);
 
+    let keyboard_typo = distance_match
+        .as_ref()
+        .is_some_and(|(matched, _)| keyboard_typo(&normalized, matched));
+
     ScanResult {
         candidate: name.to_string(),
         distance_match,
         homoglyph_match,
+        keyboard_typo,
     }
 }
 
@@ -161,6 +178,21 @@ mod tests {
         assert!(rendered.contains("likely typosquat"));
         assert!(rendered.contains("edit distance 1 from popular package \"react\""));
         assert!(rendered.contains("homoglyph impersonation of popular package \"react\""));
+    }
+
+    #[test]
+    fn adjacent_key_typo_is_reported_as_a_reason() {
+        let result = score_package("reqiests");
+        assert_eq!(result.distance_match, Some(("requests".to_string(), 1)));
+        assert!(result.keyboard_typo);
+        assert!(result.to_string().contains("adjacent-key typo of \"requests\""));
+    }
+
+    #[test]
+    fn non_adjacent_substitution_is_not_a_keyboard_typo() {
+        let result = score_package("reqzests");
+        assert_eq!(result.distance_match, Some(("requests".to_string(), 1)));
+        assert!(!result.keyboard_typo);
     }
 
     #[test]

@@ -335,3 +335,20 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** The-moving-man
 - **Closes:** #26
 - **Status:** In review.
+
+### typosquat scanner — adjacent-key (keyboard) typo reason
+
+- **What:** Adds `src/typosquat/keyboard.rs` with a QWERTY adjacency map
+  (`keys_adjacent`) and `keyboard_typo(candidate, target) -> bool`, true
+  when the only edit is one substitution of a neighbouring key
+  (`reqiests` → `requests`, `i` next to `u`). `ScanResult` gains a
+  `keyboard_typo` flag, set when the distance match is such a typo, and
+  `Display` prints it as an extra "adjacent-key typo … (likely accidental
+  install)" reason. The threshold logic and `is_likely_typosquat` are
+  unchanged.
+- **Tests:** `reqiests`/`requests` → true; `reqzests`/`requests` → false;
+  identical names, insertions and multi-edit names → false; row and
+  cross-row adjacency; the scanner reports the reason.
+- **By:** The-moving-man
+- **Closes:** #29
+- **Status:** In review.
