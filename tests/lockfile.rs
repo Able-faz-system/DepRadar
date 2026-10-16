@@ -51,3 +51,56 @@ fn requirements_txt_dependencies_are_all_direct() {
     );
     assert_eq!(parsed.warnings.len(), 1);
 }
+
+/// `(name, version, path)` for each parsed dependency, in parse order.
+fn paths(dependencies: &[Dependency]) -> Vec<(&str, Option<&str>, String)> {
+    dependencies
+        .iter()
+        .map(|d| (d.name.as_str(), d.version.as_deref(), d.path.join(" > ")))
+        .collect()
+}
+
+#[test]
+fn npm_paths_follow_the_shortest_chain_and_node_resolution() {
+    let parsed = parse_lockfile(&fixture("npm-chain/package-lock.json")).unwrap();
+
+    assert_eq!(
+        paths(&parsed.dependencies),
+        vec![
+            (
+                "deep-a",
+                Some("1.0.0"),
+                "my-app > tiny-helper > deep-a".to_string()
+            ),
+            (
+                "deep-b",
+                Some("1.0.0"),
+                "my-app > tiny-helper > deep-a > deep-b".to_string()
+            ),
+            // Reachable via deep-b too, but webpack's chain is shorter.
+            (
+                "loader-kit",
+                Some("1.0.0"),
+                "my-app > webpack > loader-kit".to_string()
+            ),
+            // loader-kit gets its own nested copy of old-lib...
+            (
+                "old-lib",
+                Some("1.0.0"),
+                "my-app > webpack > loader-kit > old-lib".to_string()
+            ),
+            // ...while tiny-helper resolves the hoisted one.
+            (
+                "old-lib",
+                Some("2.0.0"),
+                "my-app > tiny-helper > old-lib".to_string()
+            ),
+            (
+                "tiny-helper",
+                Some("1.0.0"),
+                "my-app > tiny-helper".to_string()
+            ),
+            ("webpack", Some("5.90.0"), "my-app > webpack".to_string()),
+        ]
+    );
+}

@@ -229,14 +229,23 @@ pub fn scan_lockfile(
 }
 
 /// Collapses repeated `(name, version)` pairs, keeping first-seen order. A
-/// pair counts as direct if any of its installs is direct.
+/// pair counts as direct if any of its installs is direct, and keeps the
+/// shortest known path among them.
 fn dedupe(dependencies: Vec<Dependency>) -> Vec<Dependency> {
     let mut index: HashMap<(String, Option<String>), usize> = HashMap::new();
     let mut unique: Vec<Dependency> = Vec::new();
     for dependency in dependencies {
         let key = (dependency.name.clone(), dependency.version.clone());
         match index.get(&key) {
-            Some(&existing) => unique[existing].direct |= dependency.direct,
+            Some(&existing) => {
+                let kept = &mut unique[existing];
+                kept.direct |= dependency.direct;
+                let shorter = !dependency.path.is_empty()
+                    && (kept.path.is_empty() || dependency.path.len() < kept.path.len());
+                if shorter {
+                    kept.path = dependency.path;
+                }
+            }
             None => {
                 index.insert(key, unique.len());
                 unique.push(dependency);
@@ -252,6 +261,7 @@ fn finding(dependency: &Dependency, kind: FindingKind) -> Finding {
         version: dependency.version.clone(),
         ecosystem: dependency.ecosystem,
         direct: dependency.direct,
+        path: dependency.path.clone(),
         kind,
     }
 }

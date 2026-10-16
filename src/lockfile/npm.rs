@@ -11,8 +11,14 @@
 //! the top-level install (`node_modules/<name>`) that satisfies that entry.
 //! Everything else, including a nested copy of a direct dependency's name at
 //! another version, is transitive.
+//!
+//! Each dependency also gets the shortest chain of packages that pulls it in,
+//! starting from the project (`my-app > webpack > old-lib`). The graph comes
+//! from each entry's `dependencies` maps, resolved the way Node does: a
+//! package requiring `bar` gets the nearest `node_modules/bar` found by
+//! walking up from its own install location.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 use serde::Deserialize;
 
@@ -23,6 +29,7 @@ const NODE_MODULES: &str = "node_modules/";
 
 #[derive(Debug, Deserialize)]
 struct PackageLock {
+    name: Option<String>,
     #[serde(rename = "lockfileVersion")]
     lockfile_version: Option<u32>,
     #[serde(default)]
@@ -38,6 +45,8 @@ struct PackageEntry {
     /// A symlink to a workspace folder; the target is listed separately.
     #[serde(default)]
     link: bool,
+    /// For a `link` entry, the key of the entry it points to.
+    resolved: Option<String>,
     #[serde(default)]
     dependencies: BTreeMap<String, String>,
     #[serde(default, rename = "devDependencies")]
@@ -78,6 +87,8 @@ pub fn parse(contents: &str) -> Result<ParsedLockfile, LockfileError> {
                 .collect()
         })
         .unwrap_or_default();
+
+    let paths = shortest_paths(&lock);
 
     if lock.packages.is_empty() {
         let version = lock
@@ -122,6 +133,7 @@ pub fn parse(contents: &str) -> Result<ParsedLockfile, LockfileError> {
             version,
             ecosystem: Ecosystem::Npm,
             direct: direct_keys.contains(key),
+            path: paths.get(key.as_str()).cloned().unwrap_or_default(),
         });
     }
 
@@ -129,6 +141,87 @@ pub fn parse(contents: &str) -> Result<ParsedLockfile, LockfileError> {
         ecosystem: Ecosystem::Npm,
         dependencies,
         warnings,
+    })
+}
+
+/// Breadth-first search from the root entry over the resolved dependency
+/// graph, returning the shortest name path to every reachable install
+/// location. Unreachable (extraneous) entries are absent.
+fn shortest_paths(lock: &PackageLock) -> HashMap<&str, Vec<String>> {
+    let mut paths: HashMap<&str, Vec<String>> = HashMap::new();
+    let Some((root_key, root)) = lock.packages.get_key_value("") else {
+        return paths;
+    };
+    let root_name = root
+        .name
+        .clone()
+        .or_else(|| lock.name.clone())
+        .unwrap_or_else(|| "(root)".to_string());
+
+    let mut visited: HashSet<&str> = HashSet::from([root_key.as_str()]);
+    let mut queue: VecDeque<(&str, Vec<String>)> = VecDeque::from([("", vec![root_name])]);
+
+    while let Some((key, path)) = queue.pop_front() {
+        let Some(entry) = lock.packages.get(key) else {
+            continue;
+        };
+        for name in entry.dependency_names() {
+            let Some(child) = resolve(&lock.packages, key, name) else {
+                continue;
+            };
+            if !visited.insert(child) {
+                continue;
+            }
+            let mut child_path = path.clone();
+            child_path.push(display_name(child, &lock.packages[child]));
+            paths.insert(child, child_path.clone());
+            queue.push_back((child, child_path));
+        }
+    }
+
+    paths
+}
+
+/// The install location Node would load when the package at `from` requires
+/// `name`: the nearest `node_modules/<name>` walking up from `from` to the
+/// project root, following workspace links to their target.
+fn resolve<'a>(
+    packages: &'a BTreeMap<String, PackageEntry>,
+    from: &str,
+    name: &str,
+) -> Option<&'a str> {
+    let mut base = from;
+    loop {
+        let candidate = if base.is_empty() {
+            format!("{NODE_MODULES}{name}")
+        } else {
+            format!("{base}/{NODE_MODULES}{name}")
+        };
+        if let Some((key, entry)) = packages.get_key_value(&candidate) {
+            return match (entry.link, entry.resolved.as_deref()) {
+                (true, Some(target)) => packages.get_key_value(target).map(|(k, _)| k.as_str()),
+                _ => Some(key.as_str()),
+            };
+        }
+        if base.is_empty() {
+            return None;
+        }
+        // Step up past this package's own `node_modules/<name>` segment.
+        base = match base.rfind("/node_modules/") {
+            Some(index) => &base[..index],
+            None => "",
+        };
+    }
+}
+
+/// Name to show for an entry in a dependency path. Workspace packages live
+/// outside `node_modules/`, so fall back to their folder name.
+fn display_name(key: &str, entry: &PackageEntry) -> String {
+    package_name(key, entry).unwrap_or_else(|| {
+        entry
+            .name
+            .clone()
+            .unwrap_or_else(|| key.rsplit('/').next().unwrap_or(key).to_string())
     })
 }
 

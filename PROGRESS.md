@@ -363,3 +363,26 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** Cosmas Ommaike
 - **Closes:** #71
 - **Status:** In review.
+
+### scanner — dependency paths for transitive findings
+
+- **What:** `Dependency` and `Finding` gain `path: Vec<String>`, which is
+  the shortest chain from the project to the package (e.g. `my-app >
+  webpack > old-lib`).
+  - For `package-lock.json`, the graph is built from each entry's
+    dependency maps. Each edge resolves the way Node does: it takes the
+    nearest `node_modules/<name>`, walking up from the requiring package and
+    following workspace links. A breadth-first search from the root then
+    gives the shortest path.
+  - `requirements.txt` entries have no project root, so their path is just
+    their own name.
+  - Deduped pairs keep the shortest path.
+  - The report shows transitive findings as `[transitive via a > b > c]`.
+- **Tests:** a `npm-chain` fixture with a 3-level chain
+  (`my-app > webpack > loader-kit > old-lib`). It includes a longer
+  competing route and a nested copy versus a hoisted copy of the same
+  package. The tests assert the exact paths, both at the parser level and on
+  a mocked-OSV finding.
+- **By:** Cosmas Ommaike
+- **Closes:** #72
+- **Status:** In review.

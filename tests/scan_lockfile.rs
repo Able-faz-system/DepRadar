@@ -147,3 +147,26 @@ fn unsupported_file_name_is_an_error() {
     let opts = ScanOptions::default();
     assert!(scan_lockfile(fixture("does-not-exist.lock"), &opts).is_err());
 }
+
+#[test]
+fn transitive_finding_carries_its_dependency_path() {
+    let osv = MockOsv::new(vec![("old-lib", "1.0.0", "GHSA-test-old-lib")]);
+    let opts = ScanOptions {
+        typosquat: false,
+        advisories: Some(&osv),
+    };
+
+    let report = scan_lockfile(fixture("npm-chain/package-lock.json"), &opts).unwrap();
+
+    assert_eq!(report.findings.len(), 1, "findings: {:#?}", report.findings);
+    let finding = &report.findings[0];
+    assert_eq!(finding.package, "old-lib");
+    assert!(!finding.direct);
+    assert_eq!(
+        finding.path,
+        vec!["my-app", "webpack", "loader-kit", "old-lib"]
+    );
+    assert!(finding
+        .to_string()
+        .contains("[transitive via my-app > webpack > loader-kit > old-lib]"));
+}

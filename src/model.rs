@@ -21,6 +21,12 @@ pub struct Dependency {
     /// the project manifest), false if it was only pulled in by another
     /// dependency.
     pub direct: bool,
+    /// The shortest chain of packages that pulls this one in, starting from
+    /// the project and ending with this package, e.g.
+    /// `["my-app", "webpack", "old-lib"]`. Formats with no project root
+    /// (`requirements.txt`) start at the dependency itself. Empty if the
+    /// lockfile doesn't connect the package to the project.
+    pub path: Vec<String>,
 }
 
 /// What the scanner found wrong with a dependency.
@@ -46,6 +52,8 @@ pub struct Finding {
     /// Whether the affected package is a direct or transitive dependency;
     /// see [`Dependency::direct`].
     pub direct: bool,
+    /// How the affected package is reached; see [`Dependency::path`].
+    pub path: Vec<String>,
     pub kind: FindingKind,
 }
 
@@ -55,8 +63,13 @@ impl fmt::Display for Finding {
             Some(version) => write!(f, "{}@{}", self.package, version)?,
             None => write!(f, "{}", self.package)?,
         }
-        let relation = if self.direct { "direct" } else { "transitive" };
-        write!(f, " [{relation}]")?;
+        if self.direct {
+            write!(f, " [direct]")?;
+        } else if self.path.is_empty() {
+            write!(f, " [transitive]")?;
+        } else {
+            write!(f, " [transitive via {}]", self.path.join(" > "))?;
+        }
 
         match &self.kind {
             FindingKind::Typosquat {

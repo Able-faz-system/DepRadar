@@ -11,7 +11,7 @@
 //! `==2.*`) is recorded without one, since OSV needs an exact version.
 //!
 //! A requirements file only lists what the project asked for, so every
-//! dependency in it is direct.
+//! dependency in it is direct, and its path is just its own name.
 
 use super::ParsedLockfile;
 use crate::model::{Dependency, Ecosystem};
@@ -112,8 +112,10 @@ fn parse_requirement(line: &str) -> Option<Dependency> {
         pinned_version(rest)
     };
 
+    let name = normalize_name(name);
     Some(Dependency {
-        name: normalize_name(name),
+        path: vec![name.clone()],
+        name,
         version,
         ecosystem: Ecosystem::PyPI,
         direct: true,
@@ -160,6 +162,7 @@ mod tests {
             version: version.map(str::to_string),
             ecosystem: Ecosystem::PyPI,
             direct: true,
+            path: vec![name.to_string()],
         }
     }
 
