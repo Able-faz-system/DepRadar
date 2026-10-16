@@ -18,6 +18,10 @@ const NPM_TOP_PACKAGES_JSON: &str = include_str!("../../data/popular-packages/np
 /// Raw JSON text of the PyPI popular-package list, embedded at compile time.
 const PYPI_TOP_PACKAGES_JSON: &str = include_str!("../../data/popular-packages/pypi-top1000.json");
 
+/// Raw JSON text of the allowlist of legitimate near-collisions, embedded at
+/// compile time.
+const ALLOWLIST_JSON: &str = include_str!("../../data/allowlist.json");
+
 /// Loads the bundled npm and PyPI popular-package lists and returns them as a
 /// single combined list.
 ///
@@ -28,6 +32,23 @@ pub fn load_popular_packages() -> Vec<String> {
     let mut combined = parse_string_array(NPM_TOP_PACKAGES_JSON);
     combined.extend(parse_string_array(PYPI_TOP_PACKAGES_JSON));
     combined
+}
+
+/// Loads the bundled allowlist: real, popular package names that are naturally
+/// within a few edits of another popular name (`preact`/`react`, `ws`/`qs`)
+/// and must never be reported as typosquats.
+///
+/// `data/allowlist.json` is an array of `{ "name": ..., "comment": ... }`
+/// objects, where `comment` records why the entry is legitimate. Only the
+/// names are returned, in file order.
+pub fn load_allowlist() -> Vec<String> {
+    // Every object has string keys and string values only, so the flat list of
+    // string literals alternates key, value, key, value.
+    parse_string_array(ALLOWLIST_JSON)
+        .chunks_exact(2)
+        .filter(|pair| pair[0] == "name")
+        .map(|pair| pair[1].clone())
+        .collect()
 }
 
 /// Minimal parser for a JSON document that is an array of strings.

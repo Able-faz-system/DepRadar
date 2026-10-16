@@ -9,18 +9,34 @@
 
 use std::fmt;
 
-use super::dataset::load_popular_packages;
+use super::dataset::{load_allowlist, load_popular_packages};
 use super::distance::nearest_match;
 use super::homoglyph::homoglyph_impersonation;
 
 /// Maximum edit distance from a popular package name that counts as
-/// "suspiciously close" rather than coincidental.
+/// "suspiciously close" rather than coincidental, scaled by the length (in
+/// characters) of the candidate name.
+///
+/// A fixed threshold is far too loose for short names: `ms`, `qs` and `ws`
+/// are all within two edits of each other, so a single cut-off would flag
+/// most two- and three-letter packages. Short names get no tolerance, medium
+/// names one edit, and longer names two:
+///
+/// | Candidate length | Threshold | Example                            |
+/// |------------------|-----------|------------------------------------|
+/// | 0-3              | 0         | `ms` vs `qs` is not flagged        |
+/// | 4-6              | 1         | `reakt` -> `react` is flagged      |
+/// | 7+               | 2         | `expresss` -> `express` is flagged |
 ///
 /// A distance of 0 is an exact match — the real package, not a typosquat —
-/// and is never flagged regardless of this threshold. 1-2 covers the classic
-/// single-keystroke typo (`expresss`, `requezts`); anything farther is
-/// treated as unrelated.
-pub const DISTANCE_THRESHOLD: usize = 2;
+/// and is never flagged regardless of this threshold.
+pub fn threshold_for(len: usize) -> usize {
+    match len {
+        0..=3 => 0,
+        4..=6 => 1,
+        _ => 2,
+    }
+}
 
 /// Result of scoring a candidate package name against both typosquat
 /// signals.
@@ -29,7 +45,7 @@ pub struct ScanResult {
     /// The name that was scored, as given by the caller.
     pub candidate: String,
     /// Set when [`nearest_match`] found a popular package within
-    /// [`DISTANCE_THRESHOLD`] edits (and not an exact match): the matched
+    /// [`threshold_for`] edits (and not an exact match): the matched
     /// name and the edit distance to it.
     pub distance_match: Option<(String, usize)>,
     /// Set when [`homoglyph_impersonation`] found that the candidate, once
@@ -72,12 +88,23 @@ impl fmt::Display for ScanResult {
 /// typosquat signals and returns why (if at all) it looks suspicious.
 ///
 /// Loads [`load_popular_packages`] internally, so callers only need a name.
+/// Names on the bundled allowlist ([`load_allowlist`]) are legitimate
+/// near-collisions and short-circuit to an unflagged result.
 pub fn score_package(name: &str) -> ScanResult {
+    if load_allowlist().iter().any(|allowed| allowed == name) {
+        return ScanResult {
+            candidate: name.to_string(),
+            distance_match: None,
+            homoglyph_match: None,
+        };
+    }
+
     let dataset = load_popular_packages();
 
     let (nearest_name, distance) = nearest_match(name, &dataset);
+    let threshold = threshold_for(name.chars().count());
     let distance_match =
-        (distance > 0 && distance <= DISTANCE_THRESHOLD).then_some((nearest_name, distance));
+        (distance > 0 && distance <= threshold).then_some((nearest_name, distance));
 
     let homoglyph_match = homoglyph_impersonation(name, &dataset);
 

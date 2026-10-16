@@ -319,3 +319,63 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** ALLEN-AYODEJI
 - **Closes:** N/A
 - **Status:** Merged.
+
+### typosquat scanner — length-scaled distance threshold
+
+- **What:** Replaces the fixed `DISTANCE_THRESHOLD = 2` in
+  [`scanner.rs`](src/typosquat/scanner.rs) with
+  `threshold_for(len) -> usize`: 0 for names of up to 3 characters, 1 for
+  4-6, and 2 above. `score_package` now scales the threshold by the
+  candidate's length in characters, so short names such as `ms`, `qs` and
+  `ws` no longer flag each other, while `expresss` → `express` still does.
+  The doc comment holds a table of the thresholds.
+- **Tests:** none added in this change.
+- **By:** FEDDIE
+- **Closes:** #30
+- **Status:** In review.
+
+### typosquat scanner — allowlist of legitimate near-collisions
+
+- **What:** Adds [`data/allowlist.json`](data/allowlist.json), 15 real
+  packages that sit within a few edits of another popular name (`preact`,
+  `react-dom`, `ms`, `qs`, `ws`, `yarn`, `nock`, `uuid`, `nuxt`, `next`,
+  `vite`, `pino`, `boto3`, `toml`, `attrs`), each with a one-line reason in
+  its `comment` field. `load_allowlist()` in
+  [`dataset.rs`](src/typosquat/dataset.rs) embeds it with `include_str!`,
+  and `score_package` returns an unflagged result for any allowlisted name
+  before running either signal.
+- **Tests:** none added in this change.
+- **By:** FEDDIE
+- **Closes:** #31
+- **Status:** In review.
+
+### typosquat scanner — more Unicode confusables
+
+- **What:** Adds 23 mappings from Unicode `confusables.txt` (UTR #39) to
+  `fold_homoglyph` in [`homoglyph.rs`](src/typosquat/homoglyph.rs), all
+  letters that are visually near-identical to lowercase ASCII:
+  - **Cyrillic:** ԝ, ѵ, ү and Ӏ.
+  - **Greek:** γ, ϲ and ϳ.
+  - **Armenian:** ո, ց, զ and ք.
+  - **Cherokee small letters:** ꮯ, ꮩ, ꮃ and ꮓ.
+  - **Latin-extended:** ɑ, ɩ and ȷ, plus the small capitals ᴏ, ᴜ, ᴠ, ᴡ
+    and ᴢ.
+- **Tests:** none added in this change.
+- **By:** FEDDIE
+- **Closes:** #32
+- **Status:** In review.
+
+### typosquat scanner — multi-character ASCII lookalikes
+
+- **What:** Adds `normalize_ascii_lookalikes(&str) -> Vec<String>` to
+  [`homoglyph.rs`](src/typosquat/homoglyph.rs). It returns every variant
+  produced by replacing `rn`→`m`, `vv`→`w`, `cl`→`d` and `nn`→`m`, with
+  each occurrence replaced independently. `homoglyph_impersonation` now
+  also checks those variants against the dataset, so `rnoment` is reported
+  as impersonating `moment` and `vvebpack` as impersonating `webpack`. A
+  name that is itself in the dataset is never flagged this way, and
+  `modern-normalize` has no variant in the dataset, so it stays clean.
+- **Tests:** none added in this change.
+- **By:** FEDDIE
+- **Closes:** #33
+- **Status:** In review.
