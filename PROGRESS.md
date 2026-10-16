@@ -354,3 +354,20 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** Barbieple-Devstem
 - **Closes:** #67
 - **Status:** In review.
+
+### scanner — direct dependencies from `package.json`
+
+- **What:** Lets a project be typosquat-checked even without a lockfile.
+  `lockfile::npm::parse_package_json(&str)` reads the names in
+  `dependencies`, `devDependencies`, `optionalDependencies` and
+  `peerDependencies` into npm `Dependency` values with `direct: true` and
+  `version: None` (the manifest only holds ranges). A name listed in several
+  sections is returned once, and is marked `dev` only when
+  `devDependencies` is the only section listing it.
+- **Tests:** a fixture (`tests/fixtures/package.json`) covering all four
+  sections, scoped names and a git spec, plus a package that is both a peer
+  and a dev dependency; a manifest with no dependency sections parses as
+  empty; invalid JSON is an error.
+- **By:** Barbieple-Devstem
+- **Closes:** #68
+- **Status:** In review.

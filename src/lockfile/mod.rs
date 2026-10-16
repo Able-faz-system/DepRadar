@@ -4,11 +4,13 @@
 //! [`Dependency`](crate::model::Dependency) values:
 //!
 //! - [`cargo`] — `Cargo.lock`
+//! - [`npm`] — `package.json`
 //! - [`pypi`] — `Pipfile.lock`
 
 use std::fmt;
 
 pub mod cargo;
+pub mod npm;
 pub mod pypi;
 
 /// Why a lockfile or manifest couldn't be parsed.
