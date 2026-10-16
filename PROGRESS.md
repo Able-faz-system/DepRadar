@@ -371,3 +371,21 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** The-moving-man
 - **Closes:** #27
 - **Status:** In review.
+
+### typosquat scanner — combosquatting signal
+
+- **What:** Adds `src/typosquat/combosquat.rs` with `combosquat(candidate,
+  dataset)`. The candidate is split on `-`, `_` and `.`; it is flagged when
+  a run of consecutive tokens is exactly a popular package and every other
+  token is a bait word (`lodash-utils`, `secure-react`). The longest
+  popular match wins (`babel-core-secure` → `babel-core`), and names that
+  are themselves popular (`react-dom`) are never flagged. The bait words
+  live in the `BAIT_WORDS` const slice so the list is easy to extend.
+  `ScanResult` gains `combosquat: Option<String>`, which counts toward
+  `is_likely_typosquat` and is printed by `Display`.
+- **Tests:** `lodash-utils` flags `lodash`; `react-dom` does not flag;
+  `babel-core-secure` flags `babel-core`; bait prefixes and `_` separators
+  flag; non-bait extra words and bait words alone do not.
+- **By:** The-moving-man
+- **Closes:** #28
+- **Status:** In review.

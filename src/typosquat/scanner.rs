@@ -1,14 +1,16 @@
 //! Combined typosquat scoring: the single entry point that ties the
-//! edit-distance signal ([`super::distance`]) and the homoglyph signal
-//! ([`super::homoglyph`]) together into one answer.
+//! edit-distance ([`super::distance`]), homoglyph ([`super::homoglyph`]),
+//! scope-confusion ([`super::scope`]) and combosquat ([`super::combosquat`])
+//! signals together into one answer.
 //!
 //! Each underlying signal stays independent and boolean/threshold-free on its
 //! own — this module is where "is this name suspicious, and why" finally gets
-//! decided. [`score_package`] runs a candidate against both signals and
-//! [`ScanResult`] reports which (if either, or both) fired.
+//! decided. [`score_package`] runs a candidate against every signal and
+//! [`ScanResult`] reports which of them fired.
 
 use std::fmt;
 
+use super::combosquat::combosquat;
 use super::dataset::load_popular_packages;
 use super::distance::nearest_match;
 use super::homoglyph::homoglyph_impersonation;
@@ -48,6 +50,9 @@ pub struct ScanResult {
     /// popular scoped package by misspelling or dropping its scope
     /// (`@typess/node`, `types-node`): the imitated package.
     pub scope_confusion: Option<String>,
+    /// Set when [`combosquat`] found that the candidate is a popular package
+    /// name with bait words attached (`lodash-utils`): the popular package.
+    pub combosquat: Option<String>,
 }
 
 impl ScanResult {
@@ -56,6 +61,7 @@ impl ScanResult {
         self.distance_match.is_some()
             || self.homoglyph_match.is_some()
             || self.scope_confusion.is_some()
+            || self.combosquat.is_some()
     }
 }
 
@@ -90,6 +96,12 @@ impl fmt::Display for ScanResult {
                 "\n  - scope confusion with popular scoped package \"{name}\""
             )?;
         }
+        if let Some(name) = &self.combosquat {
+            write!(
+                f,
+                "\n  - combosquat of popular package \"{name}\" with bait words"
+            )?;
+        }
         Ok(())
     }
 }
@@ -116,12 +128,15 @@ pub fn score_package(name: &str) -> ScanResult {
 
     let scope_confusion = scope_confusion(&normalized, &dataset);
 
+    let combosquat = combosquat(&normalized, &dataset);
+
     ScanResult {
         candidate: name.to_string(),
         distance_match,
         homoglyph_match,
         keyboard_typo,
         scope_confusion,
+        combosquat,
     }
 }
 
@@ -232,6 +247,20 @@ mod tests {
         let result = score_package("@types/node");
         assert_eq!(result.scope_confusion, None);
         assert!(!result.is_likely_typosquat());
+    }
+
+    #[test]
+    fn combosquat_is_flagged_with_reason() {
+        let result = score_package("lodash-utils");
+        assert_eq!(result.combosquat.as_deref(), Some("lodash"));
+        assert!(result.is_likely_typosquat());
+        assert!(result.to_string().contains("combosquat of popular package \"lodash\""));
+    }
+
+    #[test]
+    fn real_multi_word_package_is_not_a_combosquat() {
+        let result = score_package("react-dom");
+        assert_eq!(result.combosquat, None);
     }
 
     #[test]
