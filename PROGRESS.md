@@ -338,3 +338,19 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** Barbieple-Devstem
 - **Closes:** #66
 - **Status:** In review.
+
+### scanner — `Cargo.lock` parser
+
+- **What:** Lets DepRadar scan Rust projects, starting with its own.
+  `lockfile::cargo::parse_cargo_lock(&str)` reads `[[package]]` entries with
+  the `toml` crate (a new dependency) and returns each as a crates.io
+  `Dependency` with its pinned version. Packages without a `source` — the
+  workspace's own crates and local path dependencies — are skipped; both
+  registry and git sources are kept. `ParseError` gains a `Toml` variant.
+- **Tests:** parses this repo's own `Cargo.lock` and finds `soroban-sdk`,
+  while skipping the `deprader` and `deprader-router` workspace members; an
+  inline lockfile checks registry, git and source-less entries; invalid TOML
+  is an error.
+- **By:** Barbieple-Devstem
+- **Closes:** #67
+- **Status:** In review.
