@@ -4,7 +4,9 @@
 //!
 //! - `scan <lockfile>` — scans a `package-lock.json` or `requirements.txt`
 //!   for typosquats and known vulnerabilities (via OSV) and prints the
-//!   report. Exits 1 if there are findings, 2 if the scan couldn't run.
+//!   report. Findings accepted in a `.depradarignore` next to the lockfile
+//!   are listed separately and don't count. Exits 1 if there are
+//!   unsuppressed findings, 2 if the scan couldn't run.
 //! - `scan <package-name>` — scores a single name against the bundled
 //!   popular-package dataset with both typosquat signals.
 
@@ -12,6 +14,7 @@ use std::env;
 use std::path::Path;
 use std::process::ExitCode;
 
+use deprader::ignore::{IgnoreFile, IGNORE_FILE_NAME};
 use deprader::pipeline::{scan_lockfile, ScanOptions};
 use deprader::typosquat::scanner::score_package;
 
@@ -29,7 +32,27 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    match scan_lockfile(&target, &ScanOptions::default()) {
+    let ignore_path = Path::new(&target)
+        .parent()
+        .unwrap_or_else(|| Path::new(""))
+        .join(IGNORE_FILE_NAME);
+    let ignore = if ignore_path.is_file() {
+        match IgnoreFile::load(&ignore_path) {
+            Ok(ignore) => Some(ignore),
+            Err(err) => {
+                eprintln!("error: {err}");
+                return ExitCode::from(2);
+            }
+        }
+    } else {
+        None
+    };
+
+    let opts = ScanOptions {
+        ignore: ignore.as_ref(),
+        ..ScanOptions::default()
+    };
+    match scan_lockfile(&target, &opts) {
         Ok(report) => {
             println!("{report}");
             if report.has_findings() {

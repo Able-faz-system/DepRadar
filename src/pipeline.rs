@@ -1,5 +1,6 @@
 //! End-to-end scan of a project lockfile: parse it, run the typosquat scorer
-//! over every package name, check every pinned version against OSV, and
+//! over every package name, check every pinned version against OSV, drop
+//! anything accepted in a `.depradarignore` file ([`crate::ignore`]), and
 //! collect the results into one [`Report`].
 
 use std::collections::HashMap;
@@ -8,6 +9,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::cve::osv_client::{query_osv_batch, OsvBatchQuery};
+use crate::ignore::{Date, IgnoreFile, Suppressed};
 use crate::lockfile::{parse_lockfile, LockfileError};
 use crate::model::{Dependency, Ecosystem, Finding, FindingKind};
 use crate::typosquat::scanner::{score_package, ScanResult};
@@ -44,6 +46,10 @@ pub struct ScanOptions<'a> {
     pub typosquat: bool,
     /// Where to look up known vulnerabilities, or `None` to skip CVE checks.
     pub advisories: Option<&'a dyn AdvisorySource>,
+    /// Accepted findings to suppress, or `None` to report everything.
+    pub ignore: Option<&'a IgnoreFile>,
+    /// The date suppression expiry is judged against; `None` means today.
+    pub today: Option<Date>,
 }
 
 impl Default for ScanOptions<'_> {
@@ -51,6 +57,8 @@ impl Default for ScanOptions<'_> {
         ScanOptions {
             typosquat: true,
             advisories: Some(&OsvAdvisories),
+            ignore: None,
+            today: None,
         }
     }
 }
@@ -65,6 +73,9 @@ pub struct Summary {
     pub queried: usize,
     pub typosquats: usize,
     pub vulnerabilities: usize,
+    /// Findings matched by an active ignore entry. Not counted in
+    /// `typosquats` / `vulnerabilities`.
+    pub suppressed: usize,
     pub warnings: usize,
 }
 
@@ -73,15 +84,19 @@ pub struct Summary {
 pub struct Report {
     pub path: PathBuf,
     pub ecosystem: Ecosystem,
+    /// Findings that still need attention.
     pub findings: Vec<Finding>,
-    /// Problems parsing the lockfile. These are not findings: they mean part
-    /// of the file couldn't be checked.
+    /// Findings an ignore entry accepted. Listed for visibility but excluded
+    /// from [`Report::has_findings`] and so from the CLI exit code.
+    pub suppressed: Vec<Suppressed>,
+    /// Problems parsing the lockfile, and expired ignore entries. These are
+    /// not findings: they mean part of the scan may not be what you expect.
     pub warnings: Vec<String>,
     pub summary: Summary,
 }
 
 impl Report {
-    /// True if any finding was reported.
+    /// True if any unsuppressed finding was reported.
     pub fn has_findings(&self) -> bool {
         !self.findings.is_empty()
     }
@@ -106,6 +121,17 @@ impl fmt::Display for Report {
             }
         }
 
+        if !self.suppressed.is_empty() {
+            writeln!(f, "\nSuppressed ({}):", self.suppressed.len())?;
+            for suppressed in &self.suppressed {
+                write!(f, "  - {} — {}", suppressed.finding, suppressed.reason)?;
+                match suppressed.expires {
+                    Some(expires) => writeln!(f, " (until {expires})")?,
+                    None => writeln!(f)?,
+                }
+            }
+        }
+
         if !self.warnings.is_empty() {
             writeln!(f, "\nWarnings ({}):", self.warnings.len())?;
             for warning in &self.warnings {
@@ -115,8 +141,12 @@ impl fmt::Display for Report {
 
         write!(
             f,
-            "\nSummary: {} typosquat(s), {} vulnerability finding(s), {} warning(s)",
-            self.summary.typosquats, self.summary.vulnerabilities, self.summary.warnings
+            "\nSummary: {} typosquat(s), {} vulnerability finding(s), {} suppressed, \
+             {} warning(s)",
+            self.summary.typosquats,
+            self.summary.vulnerabilities,
+            self.summary.suppressed,
+            self.summary.warnings
         )
     }
 }
@@ -148,6 +178,8 @@ impl Error for ScanError {
 
 /// Scans the lockfile at `path` for typosquats and known vulnerabilities.
 ///
+/// Findings matched by an unexpired entry in `opts.ignore` move to
+/// [`Report::suppressed`]; expired entries produce a warning instead.
 /// Repeated `(name, version)` pairs (the same package installed in several
 /// places) are checked once, and all pinned versions go to the advisory
 /// source in a single batch.
@@ -208,6 +240,15 @@ pub fn scan_lockfile(
         }
     }
 
+    let mut warnings = parsed.warnings;
+    let mut suppressed = Vec::new();
+    if let Some(ignore) = opts.ignore {
+        let applied = ignore.apply(findings, opts.today.unwrap_or_else(Date::today));
+        findings = applied.kept;
+        suppressed = applied.suppressed;
+        warnings.extend(applied.warnings);
+    }
+
     let count = |is_kind: fn(&FindingKind) -> bool| {
         findings.iter().filter(|f| is_kind(&f.kind)).count()
     };
@@ -216,14 +257,16 @@ pub fn scan_lockfile(
         queried,
         typosquats: count(|kind| matches!(kind, FindingKind::Typosquat { .. })),
         vulnerabilities: count(|kind| matches!(kind, FindingKind::Vulnerability { .. })),
-        warnings: parsed.warnings.len(),
+        suppressed: suppressed.len(),
+        warnings: warnings.len(),
     };
 
     Ok(Report {
         path: path.to_path_buf(),
         ecosystem: parsed.ecosystem,
         findings,
-        warnings: parsed.warnings,
+        suppressed,
+        warnings,
         summary,
     })
 }

@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 
 use deprader::cve::osv_client::OsvBatchQuery;
+use deprader::ignore::{Date, IgnoreFile};
 use deprader::model::{Ecosystem, FindingKind};
 use deprader::pipeline::{scan_lockfile, AdvisoryError, AdvisorySource, ScanOptions};
 
@@ -57,6 +58,7 @@ fn finds_typosquat_and_vulnerable_pin_in_npm_lockfile() {
     let opts = ScanOptions {
         typosquat: true,
         advisories: Some(&osv),
+        ..ScanOptions::default()
     };
 
     let report = scan_lockfile(fixture("npm-basic/package-lock.json"), &opts).unwrap();
@@ -104,6 +106,7 @@ fn dedupes_pins_and_queries_osv_in_one_batch() {
     let opts = ScanOptions {
         typosquat: false,
         advisories: Some(&osv),
+        ..ScanOptions::default()
     };
 
     let report = scan_lockfile(fixture("npm-basic/package-lock.json"), &opts).unwrap();
@@ -132,6 +135,7 @@ fn reports_parse_warnings_separately_from_findings() {
     let opts = ScanOptions {
         typosquat: false,
         advisories: None,
+        ..ScanOptions::default()
     };
 
     let report = scan_lockfile(fixture("npm-basic/package-lock.json"), &opts).unwrap();
@@ -154,6 +158,7 @@ fn transitive_finding_carries_its_dependency_path() {
     let opts = ScanOptions {
         typosquat: false,
         advisories: Some(&osv),
+        ..ScanOptions::default()
     };
 
     let report = scan_lockfile(fixture("npm-chain/package-lock.json"), &opts).unwrap();
@@ -169,4 +174,51 @@ fn transitive_finding_carries_its_dependency_path() {
     assert!(finding
         .to_string()
         .contains("[transitive via my-app > webpack > loader-kit > old-lib]"));
+}
+
+const LODASH_IGNORE: &str = r#"
+[[ignore]]
+package = "lodash"
+advisory = "GHSA-29mw-wpgm-hmr9"
+reason = "Only reachable from build tooling"
+expires = 2026-12-31
+"#;
+
+#[test]
+fn ignore_file_suppresses_matching_findings_until_they_expire() {
+    let osv = MockOsv::new(vec![("lodash", "4.17.4", "GHSA-29mw-wpgm-hmr9")]);
+    let ignore = IgnoreFile::parse(LODASH_IGNORE).unwrap();
+    let scan_on = |today: &str| {
+        let opts = ScanOptions {
+            typosquat: false,
+            advisories: Some(&osv),
+            ignore: Some(&ignore),
+            today: Date::parse(today),
+        };
+        scan_lockfile(fixture("npm-basic/package-lock.json"), &opts).unwrap()
+    };
+
+    let active = scan_on("2026-10-16");
+    assert!(!active.has_findings(), "findings: {:#?}", active.findings);
+    assert_eq!(active.suppressed.len(), 1);
+    assert_eq!(active.suppressed[0].finding.package, "lodash");
+    assert_eq!(active.suppressed[0].reason, "Only reachable from build tooling");
+    assert_eq!(active.summary.suppressed, 1);
+    assert_eq!(active.summary.vulnerabilities, 0);
+    assert!(active.to_string().contains("Suppressed (1):"));
+
+    let expired = scan_on("2027-01-01");
+    assert!(expired.has_findings());
+    assert!(expired.suppressed.is_empty());
+    assert_eq!(expired.summary.vulnerabilities, 1);
+    assert!(
+        expired.warnings.iter().any(|w| w.contains("expired on 2026-12-31")),
+        "warnings: {:#?}",
+        expired.warnings
+    );
+}
+
+#[test]
+fn ignore_file_without_reason_is_rejected() {
+    assert!(IgnoreFile::parse("[[ignore]]\npackage = \"lodash\"\n").is_err());
 }

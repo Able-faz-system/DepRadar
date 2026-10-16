@@ -386,3 +386,29 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** Cosmas Ommaike
 - **Closes:** #72
 - **Status:** In review.
+
+### scanner — `.depradarignore` suppressions
+
+- **What:** Adds `src/ignore.rs`, which lets a team accept specific
+  findings in a TOML `.depradarignore` file.
+  - Each `[[ignore]]` entry has a `package`, an optional `version` and
+    `advisory`, a required non-empty `reason`, and an optional `expires`
+    date (the last day it applies).
+  - An entry without `advisory` covers every finding for that package. An
+    entry with one covers only that vulnerability.
+  - `scan_lockfile` moves matched findings to `Report::suppressed`. They
+    appear in a separate "Suppressed" section with their reason, and they
+    are excluded from `has_findings()` and so from the CLI exit code.
+  - Expired entries stop suppressing and add a warning.
+  - The `scan` CLI loads a `.depradarignore` from the lockfile's directory.
+  - The parser covers only the TOML subset these files need, so the crate
+    takes on no new dependency. Unknown keys, unsupported syntax and invalid
+    dates are parse errors.
+- **Tests:** unit tests cover a match being suppressed (and near misses on
+  advisory or version being kept), an expired entry warning and no longer
+  suppressing, a missing or empty reason being a parse error, and date
+  handling. An integration test runs the same ignore file through
+  `scan_lockfile` before and after its expiry.
+- **By:** Cosmas Ommaike
+- **Closes:** #73
+- **Status:** In review.
