@@ -371,3 +371,27 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** Barbieple-Devstem
 - **Closes:** #68
 - **Status:** In review.
+
+### scanner — auto-detect the lockfile type from its file name
+
+- **What:** Users no longer have to say which parser to use. Adds
+  `LockfileKind` and `lockfile::detect(path) -> Option<LockfileKind>` to
+  `src/lockfile/mod.rs`, mapping `package-lock.json`, `yarn.lock`,
+  `pnpm-lock.yaml`, `requirements*.txt`, `poetry.lock`, `Pipfile.lock`,
+  `Cargo.lock` and `package.json` by file name (the directory is ignored).
+  `lockfile::parse_file(path) -> Result<Vec<Dependency>, ParseError>` reads
+  the file and dispatches to the matching parser. Today that's
+  `Pipfile.lock`, `Cargo.lock` and `package.json`; the other recognised
+  formats return `ParseError::Unsupported` until their parsers land (#60–#65),
+  and unrecognised names return `ParseError::UnknownFile`. Neither case
+  reads the file. `ParseError` gains `Io`, `UnknownFile` and `Unsupported`
+  variants.
+- **Tests:** a table-driven test over every supported file name (including
+  `requirements-*.txt` variants and a nested path) plus unknown ones
+  (`Gemfile.lock`, `requirements.in`, `Pipfile`, ...); `parse_file` against
+  the `Pipfile.lock` and `package.json` fixtures and this repo's
+  `Cargo.lock`; unknown, not-yet-supported and missing files map to the
+  right errors.
+- **By:** Barbieple-Devstem
+- **Closes:** #69
+- **Status:** In review.
