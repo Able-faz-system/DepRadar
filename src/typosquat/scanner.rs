@@ -14,6 +14,7 @@ use super::distance::nearest_match;
 use super::homoglyph::homoglyph_impersonation;
 use super::keyboard::keyboard_typo;
 use super::normalize::normalize_name;
+use super::scope::scope_confusion;
 
 /// Maximum edit distance from a popular package name that counts as
 /// "suspiciously close" rather than coincidental.
@@ -43,12 +44,18 @@ pub struct ScanResult {
     /// accidental install. Reported as an extra reason only; it does not
     /// change whether the candidate is flagged.
     pub keyboard_typo: bool,
+    /// Set when [`scope_confusion`] found that the candidate imitates a
+    /// popular scoped package by misspelling or dropping its scope
+    /// (`@typess/node`, `types-node`): the imitated package.
+    pub scope_confusion: Option<String>,
 }
 
 impl ScanResult {
-    /// True if either signal fired.
+    /// True if any signal fired.
     pub fn is_likely_typosquat(&self) -> bool {
-        self.distance_match.is_some() || self.homoglyph_match.is_some()
+        self.distance_match.is_some()
+            || self.homoglyph_match.is_some()
+            || self.scope_confusion.is_some()
     }
 }
 
@@ -77,6 +84,12 @@ impl fmt::Display for ScanResult {
                 "\n  - homoglyph impersonation of popular package \"{name}\""
             )?;
         }
+        if let Some(name) = &self.scope_confusion {
+            write!(
+                f,
+                "\n  - scope confusion with popular scoped package \"{name}\""
+            )?;
+        }
         Ok(())
     }
 }
@@ -101,11 +114,14 @@ pub fn score_package(name: &str) -> ScanResult {
         .as_ref()
         .is_some_and(|(matched, _)| keyboard_typo(&normalized, matched));
 
+    let scope_confusion = scope_confusion(&normalized, &dataset);
+
     ScanResult {
         candidate: name.to_string(),
         distance_match,
         homoglyph_match,
         keyboard_typo,
+        scope_confusion,
     }
 }
 
@@ -193,6 +209,29 @@ mod tests {
         let result = score_package("reqzests");
         assert_eq!(result.distance_match, Some(("requests".to_string(), 1)));
         assert!(!result.keyboard_typo);
+    }
+
+    #[test]
+    fn misspelled_scope_is_flagged_as_scope_confusion() {
+        let result = score_package("@typess/node");
+        assert_eq!(result.scope_confusion.as_deref(), Some("@types/node"));
+        assert!(result.is_likely_typosquat());
+        assert!(result
+            .to_string()
+            .contains("scope confusion with popular scoped package \"@types/node\""));
+    }
+
+    #[test]
+    fn dropped_scope_is_flagged_as_scope_confusion() {
+        let result = score_package("types-node");
+        assert_eq!(result.scope_confusion.as_deref(), Some("@types/node"));
+    }
+
+    #[test]
+    fn legitimate_scoped_package_is_not_flagged() {
+        let result = score_package("@types/node");
+        assert_eq!(result.scope_confusion, None);
+        assert!(!result.is_likely_typosquat());
     }
 
     #[test]

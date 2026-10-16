@@ -352,3 +352,22 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** The-moving-man
 - **Closes:** #29
 - **Status:** In review.
+
+### typosquat scanner — scope-confusion signal
+
+- **What:** Adds `src/typosquat/scope.rs` with `scope_confusion(candidate,
+  dataset)`. It flags a scoped name whose scope is one edit from a popular
+  scope while the bare name matches (`@typess/node` → `@types/node`), and
+  an unscoped name equal to `<scope>-<name>` or `<scope><name>` of a
+  popular scoped package (`types-node`, `typesnode`). Names that are
+  themselves popular are never flagged. `ScanResult` gains
+  `scope_confusion: Option<String>`, which counts toward
+  `is_likely_typosquat` and is printed by `Display`. The npm dataset
+  gains five `@types/*` entries (`node`, `react`, `express`, `jest`,
+  `lodash`), which it had none of.
+- **Tests:** `@typess/node`, `types-node`, `typesnode` flag `@types/node`;
+  the legitimate `@types/node` is not flagged; a lookalike scope with an
+  unknown bare name and unrelated unscoped names are not flagged.
+- **By:** The-moving-man
+- **Closes:** #27
+- **Status:** In review.
