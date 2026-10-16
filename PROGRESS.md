@@ -319,3 +319,29 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** ALLEN-AYODEJI
 - **Closes:** N/A
 - **Status:** Merged.
+
+### scanner — `scan_lockfile` end-to-end pipeline
+
+- **What:** Adds the first end-to-end scan over a real project.
+  - `src/lockfile/` parses npm `package-lock.json` (v2/v3) and pip
+    `requirements*.txt` into a flat `Vec<Dependency>`. Entries it can't use
+    (no version, git/tarball versions, `-r`/`-e` options, unparseable lines)
+    become warnings instead of errors.
+  - `src/model.rs` holds the shared `Dependency`, `Finding` and
+    `FindingKind` (typosquat or vulnerability) types.
+  - `src/pipeline.rs` adds `scan_lockfile(path, opts) -> Report`. It parses
+    the file, dedupes repeated `(name, version)` pairs, runs `score_package`
+    on every name and checks every pinned version through an
+    `AdvisorySource`. The OSV implementation sends a single
+    `POST /v1/querybatch` request per 1000 pins. The `Report` holds the
+    findings, the parse warnings (kept separate) and summary counts.
+  - `query_osv_batch` is added to `src/cve/osv_client.rs`.
+  - `cargo run --bin scan <lockfile>` prints the report and exits 1 when
+    there are findings.
+- **Tests:** an integration test (`tests/scan_lockfile.rs`) runs over a
+  fixture containing one typosquat (`expresss`) and one vulnerable pin
+  (`lodash@4.17.4`), with OSV mocked. It also covers dedupe/batching and
+  parse warnings. Unit tests cover the `requirements.txt` parser.
+- **By:** Cosmas Ommaike
+- **Closes:** #70
+- **Status:** In review.
