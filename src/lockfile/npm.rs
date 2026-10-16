@@ -5,8 +5,14 @@
 //! `node_modules/foo/node_modules/bar` is a copy of `bar` nested under `foo`.
 //! Every entry other than the root is one installed package. v1 lockfiles
 //! (npm 6 and older) have no `packages` map and aren't supported.
+//!
+//! A package is direct when the root entry lists it in `dependencies`,
+//! `devDependencies`, `optionalDependencies` or `peerDependencies` and it is
+//! the top-level install (`node_modules/<name>`) that satisfies that entry.
+//! Everything else, including a nested copy of a direct dependency's name at
+//! another version, is transitive.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Deserialize;
 
@@ -32,6 +38,26 @@ struct PackageEntry {
     /// A symlink to a workspace folder; the target is listed separately.
     #[serde(default)]
     link: bool,
+    #[serde(default)]
+    dependencies: BTreeMap<String, String>,
+    #[serde(default, rename = "devDependencies")]
+    dev_dependencies: BTreeMap<String, String>,
+    #[serde(default, rename = "optionalDependencies")]
+    optional_dependencies: BTreeMap<String, String>,
+    #[serde(default, rename = "peerDependencies")]
+    peer_dependencies: BTreeMap<String, String>,
+}
+
+impl PackageEntry {
+    /// Names of every package this entry depends on, of any kind.
+    fn dependency_names(&self) -> impl Iterator<Item = &str> {
+        self.dependencies
+            .keys()
+            .chain(self.dev_dependencies.keys())
+            .chain(self.optional_dependencies.keys())
+            .chain(self.peer_dependencies.keys())
+            .map(String::as_str)
+    }
 }
 
 /// Parses the contents of a `package-lock.json`.
@@ -41,6 +67,17 @@ pub fn parse(contents: &str) -> Result<ParsedLockfile, LockfileError> {
 
     let mut dependencies = Vec::new();
     let mut warnings = Vec::new();
+
+    // Install locations that satisfy the project's own dependency entries.
+    let direct_keys: BTreeSet<String> = lock
+        .packages
+        .get("")
+        .map(|root| {
+            root.dependency_names()
+                .map(|name| format!("{NODE_MODULES}{name}"))
+                .collect()
+        })
+        .unwrap_or_default();
 
     if lock.packages.is_empty() {
         let version = lock
@@ -84,6 +121,7 @@ pub fn parse(contents: &str) -> Result<ParsedLockfile, LockfileError> {
             name,
             version,
             ecosystem: Ecosystem::Npm,
+            direct: direct_keys.contains(key),
         });
     }
 

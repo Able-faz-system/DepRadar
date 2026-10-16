@@ -345,3 +345,21 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** Cosmas Ommaike
 - **Closes:** #70
 - **Status:** In review.
+
+### scanner — direct vs transitive dependencies
+
+- **What:** Each `Dependency` and `Finding` now carries a `direct` flag.
+  - For `package-lock.json` v2/v3, a package is direct when the root entry
+    lists it in `dependencies`, `devDependencies`, `optionalDependencies` or
+    `peerDependencies` and it is the top-level `node_modules/<name>` install.
+    Nested copies are transitive.
+  - Every entry in a `requirements.txt` is direct.
+  - When a `(name, version)` pair is installed in several places, it counts
+    as direct if any one install is direct.
+  - The report labels each finding `[direct]` or `[transitive]`.
+- **Tests:** fixture tests in `tests/lockfile.rs` assert the
+  direct/transitive split for the npm and pip fixtures. The
+  `scan_lockfile` integration test checks the flag on findings.
+- **By:** Cosmas Ommaike
+- **Closes:** #71
+- **Status:** In review.

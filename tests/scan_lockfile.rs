@@ -68,6 +68,8 @@ fn finds_typosquat_and_vulnerable_pin_in_npm_lockfile() {
         .collect();
     assert_eq!(typosquats.len(), 1, "findings: {:#?}", report.findings);
     assert_eq!(typosquats[0].package, "expresss");
+    assert!(typosquats[0].direct);
+    assert!(typosquats[0].to_string().contains("[direct]"));
     assert_eq!(
         typosquats[0].kind,
         FindingKind::Typosquat {
@@ -85,6 +87,9 @@ fn finds_typosquat_and_vulnerable_pin_in_npm_lockfile() {
     assert_eq!(vulnerabilities[0].package, "lodash");
     assert_eq!(vulnerabilities[0].version.as_deref(), Some("4.17.4"));
     assert_eq!(vulnerabilities[0].ecosystem, Ecosystem::Npm);
+    // lodash@4.17.4 is installed both at the top level and nested under
+    // express; the deduped finding is direct because one install is.
+    assert!(vulnerabilities[0].direct);
     assert_eq!(
         vulnerabilities[0].kind,
         FindingKind::Vulnerability {

@@ -17,6 +17,10 @@ pub struct Dependency {
     /// for typosquatting but can't be matched against OSV.
     pub version: Option<String>,
     pub ecosystem: Ecosystem,
+    /// True if the project depends on this package itself (it's listed in
+    /// the project manifest), false if it was only pulled in by another
+    /// dependency.
+    pub direct: bool,
 }
 
 /// What the scanner found wrong with a dependency.
@@ -39,6 +43,9 @@ pub struct Finding {
     pub package: String,
     pub version: Option<String>,
     pub ecosystem: Ecosystem,
+    /// Whether the affected package is a direct or transitive dependency;
+    /// see [`Dependency::direct`].
+    pub direct: bool,
     pub kind: FindingKind,
 }
 
@@ -48,6 +55,8 @@ impl fmt::Display for Finding {
             Some(version) => write!(f, "{}@{}", self.package, version)?,
             None => write!(f, "{}", self.package)?,
         }
+        let relation = if self.direct { "direct" } else { "transitive" };
+        write!(f, " [{relation}]")?;
 
         match &self.kind {
             FindingKind::Typosquat {

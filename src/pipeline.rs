@@ -2,7 +2,7 @@
 //! over every package name, check every pinned version against OSV, and
 //! collect the results into one [`Report`].
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -228,13 +228,22 @@ pub fn scan_lockfile(
     })
 }
 
-/// Collapses repeated `(name, version)` pairs, keeping first-seen order.
+/// Collapses repeated `(name, version)` pairs, keeping first-seen order. A
+/// pair counts as direct if any of its installs is direct.
 fn dedupe(dependencies: Vec<Dependency>) -> Vec<Dependency> {
-    let mut seen = HashSet::new();
-    dependencies
-        .into_iter()
-        .filter(|dependency| seen.insert((dependency.name.clone(), dependency.version.clone())))
-        .collect()
+    let mut index: HashMap<(String, Option<String>), usize> = HashMap::new();
+    let mut unique: Vec<Dependency> = Vec::new();
+    for dependency in dependencies {
+        let key = (dependency.name.clone(), dependency.version.clone());
+        match index.get(&key) {
+            Some(&existing) => unique[existing].direct |= dependency.direct,
+            None => {
+                index.insert(key, unique.len());
+                unique.push(dependency);
+            }
+        }
+    }
+    unique
 }
 
 fn finding(dependency: &Dependency, kind: FindingKind) -> Finding {
@@ -242,6 +251,7 @@ fn finding(dependency: &Dependency, kind: FindingKind) -> Finding {
         package: dependency.name.clone(),
         version: dependency.version.clone(),
         ecosystem: dependency.ecosystem,
+        direct: dependency.direct,
         kind,
     }
 }

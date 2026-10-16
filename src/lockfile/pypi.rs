@@ -9,6 +9,9 @@
 //!
 //! Only `==` / `===` pins count as a version. Anything looser (`>=`, `~=`,
 //! `==2.*`) is recorded without one, since OSV needs an exact version.
+//!
+//! A requirements file only lists what the project asked for, so every
+//! dependency in it is direct.
 
 use super::ParsedLockfile;
 use crate::model::{Dependency, Ecosystem};
@@ -113,6 +116,7 @@ fn parse_requirement(line: &str) -> Option<Dependency> {
         name: normalize_name(name),
         version,
         ecosystem: Ecosystem::PyPI,
+        direct: true,
     })
 }
 
@@ -155,6 +159,7 @@ mod tests {
             name: name.to_string(),
             version: version.map(str::to_string),
             ecosystem: Ecosystem::PyPI,
+            direct: true,
         }
     }
 
