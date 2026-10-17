@@ -431,3 +431,27 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** Able-faz-system
 - **Closes:** #75
 - **Status:** In review.
+
+### cli — `depradar` binary with clap subcommands
+
+- **What:** Adds [`src/bin/depradar.rs`](src/bin/depradar.rs), built on
+  `clap` derive, with two subcommands:
+  - `depradar name <pkg>` scores one package name. This is the old
+    `scan <pkg>` behaviour, and the output is identical.
+  - `depradar scan <path> [--offline]` scans a lockfile, or every lockfile
+    under a directory via `pipeline::scan_dir`. It honours a
+    `.depradarignore` next to the lockfile (or at the directory root), and
+    `--offline` skips the OSV lookup.
+
+  Exit codes: 0 clean, 1 findings, 2 usage or scan error. `--help` ends
+  with usage examples and the exit codes. The old `scan` binary still works
+  but prints a deprecation notice to stderr.
+- **Tests:** `tests/cli.rs` (`assert_cmd`) checks that `depradar name
+  expresss` prints exactly what `scan expresss` does (and that `scan` warns
+  on stderr), snapshots `depradar --help` against
+  `tests/snapshots/depradar-help.txt`, and covers a file scan with findings
+  (exit 1) and a missing subcommand (exit 2).
+- **By:** Able-faz-system
+- **Closes:** #76
+- **Status:** In review. Verified against the same pre-merge tree as #74,
+  because `main` doesn't currently compile.
