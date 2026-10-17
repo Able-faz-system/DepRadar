@@ -414,3 +414,20 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** soma-enyi
 - **Closes:** #63
 - **Status:** In review.
+
+### scanner — requirements.txt parser
+
+- **What:** Adds `parse_requirements` and
+  `parse_requirements_with_warnings` in [`pypi.rs`](src/lockfile/pypi.rs),
+  wired into `parse_file` for `requirements*.txt`. `name==version` (and
+  `===`) pins are recorded; other specifiers (`>=`, `~=`, `==1.*`) and bare
+  names get `version: None`. Comments, blank lines, `--hash` options
+  (including `\\` continuations), extras and environment markers are
+  ignored. `-r other.txt` includes are not followed and come back as
+  warnings from `parse_requirements_with_warnings`; other option lines
+  (`-e`, `--index-url`, ...) are skipped silently. All entries are
+  `direct: true`.
+- **Tests:** Unit tests for each line type. Not run in this change.
+- **By:** soma-enyi
+- **Closes:** #64
+- **Status:** In review.

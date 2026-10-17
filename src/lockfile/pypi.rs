@@ -1,4 +1,5 @@
-//! Python (PyPI) lockfile parsers.
+//! Python (PyPI) lockfile and manifest parsers: `Pipfile.lock`,
+//! `requirements.txt` and `poetry.lock`.
 
 use std::collections::BTreeMap;
 
@@ -48,6 +49,127 @@ pub fn parse_pipfile_lock(contents: &str) -> Result<Vec<Dependency>, ParseError>
             dev,
         })
         .collect())
+}
+
+/// Parses a `requirements.txt`, discarding any warnings. See
+/// [`parse_requirements_with_warnings`].
+pub fn parse_requirements(contents: &str) -> Result<Vec<Dependency>, ParseError> {
+    parse_requirements_with_warnings(contents).map(|(deps, _)| deps)
+}
+
+/// Parses a pip `requirements.txt` into its declared dependencies, plus any
+/// warnings about lines that were skipped.
+///
+/// - `name==version` (and `===`) pins give `version: Some(..)`; any other
+///   specifier (`>=`, `~=`, `<`, `!=`, `==1.*`) or a bare name gives
+///   `version: None`.
+/// - Comments, blank lines, `--hash` options, extras (`name[extra]`) and
+///   environment markers (`; python_version < "3.9"`) are ignored.
+/// - `-r other.txt` / `--requirement other.txt` includes are not followed;
+///   each one is reported as a warning. Other option lines (`-e`, `-c`,
+///   `--index-url`, ...) are skipped silently.
+///
+/// Every entry is `direct: true`, since the file lists what the project
+/// asks for.
+pub fn parse_requirements_with_warnings(
+    contents: &str,
+) -> Result<(Vec<Dependency>, Vec<String>), ParseError> {
+    let mut deps = Vec::new();
+    let mut warnings = Vec::new();
+
+    for line in logical_lines(contents) {
+        if line.is_empty() {
+            continue;
+        }
+        if let Some(include) = include_target(&line) {
+            warnings.push(format!(
+                "requirements include \"{include}\" was not followed"
+            ));
+            continue;
+        }
+        if line.starts_with('-') {
+            continue;
+        }
+        if let Some((name, version)) = parse_requirement(&line) {
+            deps.push(Dependency {
+                name,
+                version,
+                ecosystem: Ecosystem::PyPI,
+                direct: true,
+                dev: false,
+            });
+        }
+    }
+    Ok((deps, warnings))
+}
+
+/// Joins `\`-continued lines and strips comments, returning one trimmed
+/// logical requirement per entry.
+fn logical_lines(contents: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut pending = String::new();
+    for raw in contents.lines() {
+        let mut line = raw;
+        // A `#` starts a comment at the start of a line or after whitespace.
+        if let Some(i) = line
+            .char_indices()
+            .find(|&(i, c)| c == '#' && (i == 0 || line[..i].ends_with(char::is_whitespace)))
+            .map(|(i, _)| i)
+        {
+            line = &line[..i];
+        }
+        let line = line.trim_end();
+        if let Some(stripped) = line.strip_suffix('\\') {
+            pending.push_str(stripped);
+            pending.push(' ');
+        } else {
+            pending.push_str(line);
+            lines.push(pending.trim().to_string());
+            pending.clear();
+        }
+    }
+    if !pending.trim().is_empty() {
+        lines.push(pending.trim().to_string());
+    }
+    lines
+}
+
+/// Returns the file named by a `-r` / `--requirement` line.
+fn include_target(line: &str) -> Option<&str> {
+    let rest = line
+        .strip_prefix("--requirement")
+        .or_else(|| line.strip_prefix("-r"))?;
+    let target = rest.trim_start_matches(['=', ' ', '\t']).trim();
+    (!target.is_empty()).then_some(target)
+}
+
+/// Splits one requirement line into `(name, pinned version)`.
+fn parse_requirement(line: &str) -> Option<(String, Option<String>)> {
+    // Drop environment markers, then any trailing `--hash=...` options.
+    let spec = line.split(';').next()?;
+    let spec = spec.split(" --").next()?.trim();
+
+    let name_end = spec
+        .find(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')))
+        .unwrap_or(spec.len());
+    let name = &spec[..name_end];
+    if name.is_empty() {
+        return None;
+    }
+
+    // Skip extras (`name[security]`) and whitespace before the specifier.
+    let mut rest = spec[name_end..].trim_start();
+    if rest.starts_with('[') {
+        rest = rest[rest.find(']')? + 1..].trim_start();
+    }
+
+    let version = rest
+        .strip_prefix("===")
+        .or_else(|| rest.strip_prefix("=="))
+        .map(str::trim)
+        .filter(|v| !v.is_empty() && !v.contains(['*', ',', ' ']))
+        .map(str::to_string);
+    Some((name.to_string(), version))
 }
 
 /// Strips a leading `===` or `==` pin operator from a version string.
@@ -119,5 +241,88 @@ mod tests {
         assert_eq!(strip_pin("==1.0.0"), "1.0.0");
         assert_eq!(strip_pin("===1.0.0"), "1.0.0");
         assert_eq!(strip_pin("1.0.0"), "1.0.0");
+    }
+
+    #[test]
+    fn requirements_pins_and_unpinned_specifiers() {
+        let (deps, warnings) = parse_requirements_with_warnings(
+            "requests==2.31.0\nflask>=2.0\nnumpy~=1.26\ndjango\npkg===1.0.0\nwild==1.*\n",
+        )
+        .unwrap();
+        let got: Vec<_> = deps
+            .iter()
+            .map(|d| (d.name.as_str(), d.version.as_deref()))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                ("requests", Some("2.31.0")),
+                ("flask", None),
+                ("numpy", None),
+                ("django", None),
+                ("pkg", Some("1.0.0")),
+                ("wild", None),
+            ]
+        );
+        assert!(warnings.is_empty());
+        assert!(deps
+            .iter()
+            .all(|d| d.direct && !d.dev && d.ecosystem == Ecosystem::PyPI));
+    }
+
+    #[test]
+    fn requirements_ignore_comments_and_blank_lines() {
+        let deps = parse_requirements(
+            "# top comment\n\n   \nrequests==2.0  # inline comment\n  # indented comment\n",
+        )
+        .unwrap();
+        assert_eq!(deps.len(), 1);
+        assert_eq!(deps[0].name, "requests");
+        assert_eq!(deps[0].version.as_deref(), Some("2.0"));
+    }
+
+    #[test]
+    fn requirements_ignore_hash_options() {
+        let deps = parse_requirements(
+            "requests==2.31.0 \\\n    --hash=sha256:aaa \\\n    --hash=sha256:bbb\nflask==3.0.0 --hash=sha256:ccc\n",
+        )
+        .unwrap();
+        let got: Vec<_> = deps
+            .iter()
+            .map(|d| (d.name.as_str(), d.version.as_deref()))
+            .collect();
+        assert_eq!(got, vec![("requests", Some("2.31.0")), ("flask", Some("3.0.0"))]);
+    }
+
+    #[test]
+    fn requirements_ignore_environment_markers_and_extras() {
+        let deps = parse_requirements(
+            "tomli==2.0.1 ; python_version < \"3.11\"\nrequests[security]==2.31.0\nbackport>=1.0; sys_platform == 'win32'\n",
+        )
+        .unwrap();
+        let got: Vec<_> = deps
+            .iter()
+            .map(|d| (d.name.as_str(), d.version.as_deref()))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                ("tomli", Some("2.0.1")),
+                ("requests", Some("2.31.0")),
+                ("backport", None),
+            ]
+        );
+    }
+
+    #[test]
+    fn requirements_report_includes_as_warnings_without_following() {
+        let (deps, warnings) = parse_requirements_with_warnings(
+            "-r base.txt\n--requirement=dev.txt\n-e .\n--index-url https://example.com\nrequests==2.0\n",
+        )
+        .unwrap();
+        assert_eq!(deps.len(), 1);
+        assert_eq!(warnings.len(), 2);
+        assert!(warnings[0].contains("base.txt"));
+        assert!(warnings[1].contains("dev.txt"));
     }
 }
