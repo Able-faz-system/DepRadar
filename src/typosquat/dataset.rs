@@ -9,8 +9,11 @@
 //!
 //! The lists are a hand-curated, representative snapshot of widely-used
 //! packages — not a live-fetched ranking. Refreshing them from the registries'
-//! real download stats is a later task; nothing here depends on the exact
-//! ordering or count.
+//! real download stats is a later task. [`popularity_rank`] treats file order
+//! as an approximate ranking (the best-known names sit near the top of each
+//! file); nothing else depends on the exact ordering or count.
+
+use std::sync::OnceLock;
 
 /// Raw JSON text of the npm popular-package list, embedded at compile time.
 const NPM_TOP_PACKAGES_JSON: &str = include_str!("../../data/popular-packages/npm-top1000.json");
@@ -34,21 +37,36 @@ pub fn load_popular_packages() -> Vec<String> {
     combined
 }
 
-/// Loads the bundled allowlist: real, popular package names that are naturally
-/// within a few edits of another popular name (`preact`/`react`, `ws`/`qs`)
-/// and must never be reported as typosquats.
+/// The npm and PyPI lists, parsed once and cached for the life of the
+/// process.
+fn registry_lists() -> &'static (Vec<String>, Vec<String>) {
+    static LISTS: OnceLock<(Vec<String>, Vec<String>)> = OnceLock::new();
+    LISTS.get_or_init(|| {
+        (
+            parse_string_array(NPM_TOP_PACKAGES_JSON),
+            parse_string_array(PYPI_TOP_PACKAGES_JSON),
+        )
+    })
+}
+
+/// The same combined list as [`load_popular_packages`], parsed once and
+/// cached, for callers that score many names.
+pub fn popular_packages() -> &'static [String] {
+    static COMBINED: OnceLock<Vec<String>> = OnceLock::new();
+    COMBINED.get_or_init(load_popular_packages)
+}
+
+/// Zero-based popularity rank of `name` within its own registry list (0 is
+/// the most popular), or `None` if it is in neither list.
 ///
-/// `data/allowlist.json` is an array of `{ "name": ..., "comment": ... }`
-/// objects, where `comment` records why the entry is legitimate. Only the
-/// names are returned, in file order.
-pub fn load_allowlist() -> Vec<String> {
-    // Every object has string keys and string values only, so the flat list of
-    // string literals alternates key, value, key, value.
-    parse_string_array(ALLOWLIST_JSON)
-        .chunks_exact(2)
-        .filter(|pair| pair[0] == "name")
-        .map(|pair| pair[1].clone())
-        .collect()
+/// A name present on both registries gets the better of its two ranks.
+pub fn popularity_rank(name: &str) -> Option<usize> {
+    let (npm, pypi) = registry_lists();
+    let rank_in = |list: &[String]| list.iter().position(|entry| entry == name);
+    match (rank_in(npm), rank_in(pypi)) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, b) => a.or(b),
+    }
 }
 
 /// Minimal parser for a JSON document that is an array of strings.
