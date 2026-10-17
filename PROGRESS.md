@@ -319,3 +319,19 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** ALLEN-AYODEJI
 - **Closes:** N/A
 - **Status:** Merged.
+
+### CVE client — pagination, advisory fetch, severity, fix versions
+
+- **What:** Extends `src/cve/`.
+  - `query_osv` now follows `next_page_token` and merges every page.
+  - `get_vulnerability(id)` fetches the full advisory via `GET /v1/vulns/{id}`.
+  - `severity.rs` parses CVSS v3.x vectors to a base score and a `Severity`
+    level, falling back to `database_specific.severity`.
+  - `remediation.rs` adds `fixed_versions` and `fix_for` (lowest fix above
+    the scanned version).
+- **Tests:** mocked two-page query, mocked and live (skips offline)
+  `GHSA-29mw-wpgm-hmr9` fetch, six real CVSS vectors with published scores,
+  and `lodash@4.17.4` → `4.17.21`.
+- **By:** knytcomics-ui
+- **Closes:** #46, #47, #48, #49
+- **Status:** In review.
