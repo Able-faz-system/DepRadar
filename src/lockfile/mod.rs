@@ -83,8 +83,8 @@ pub fn parse_file(path: impl AsRef<Path>) -> Result<Vec<Dependency>, ParseError>
         LockfileKind::YarnLock => yarn::parse_yarn_lock,
         LockfileKind::PnpmLock => pnpm::parse_pnpm_lock,
         LockfileKind::Requirements => pypi::parse_requirements,
-        LockfileKind::PackageLock
-        | LockfileKind::PoetryLock => return Err(ParseError::Unsupported(kind)),
+        LockfileKind::PoetryLock => pypi::parse_poetry_lock,
+        LockfileKind::PackageLock => return Err(ParseError::Unsupported(kind)),
     };
     parse(&fs::read_to_string(path)?)
 }
@@ -209,8 +209,8 @@ mod tests {
             Err(ParseError::UnknownFile(_))
         ));
         assert!(matches!(
-            parse_file("does/not/exist/poetry.lock"),
-            Err(ParseError::Unsupported(LockfileKind::PoetryLock))
+            parse_file("does/not/exist/package-lock.json"),
+            Err(ParseError::Unsupported(LockfileKind::PackageLock))
         ));
         assert!(matches!(
             parse_file("does/not/exist/Cargo.lock"),

@@ -172,6 +172,73 @@ fn parse_requirement(line: &str) -> Option<(String, Option<String>)> {
     Some((name.to_string(), version))
 }
 
+/// The parts of a `poetry.lock` we read: the `[[package]]` array.
+#[derive(Debug, Deserialize)]
+struct PoetryLock {
+    #[serde(default)]
+    package: Vec<PoetryPackage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PoetryPackage {
+    name: String,
+    version: String,
+    /// Poetry < 2.0: `"main"` or `"dev"`.
+    category: Option<String>,
+    /// Poetry >= 2.0: the dependency groups the package belongs to.
+    groups: Option<Vec<String>>,
+}
+
+/// Parses a Poetry `poetry.lock` into its locked dependencies.
+///
+/// Every `[[package]]` entry is read. Names get PEP 503 normalization
+/// (lowercased, runs of `-`, `_` and `.` collapsed to a single `-`). `dev` is
+/// `true` for `category = "dev"` (older lockfiles) or when `groups` is
+/// present and doesn't include `main` (newer ones). `poetry.lock` lists
+/// transitive packages alongside declared ones without telling them apart,
+/// so `direct` is always `false`.
+pub fn parse_poetry_lock(contents: &str) -> Result<Vec<Dependency>, ParseError> {
+    let lock: PoetryLock = toml::from_str(contents)?;
+
+    Ok(lock
+        .package
+        .into_iter()
+        .map(|package| {
+            let dev = match (&package.groups, &package.category) {
+                (Some(groups), _) => !groups.iter().any(|g| g == "main"),
+                (None, Some(category)) => category == "dev",
+                (None, None) => false,
+            };
+            Dependency {
+                name: normalize_pypi_name(&package.name),
+                version: Some(package.version),
+                ecosystem: Ecosystem::PyPI,
+                direct: false,
+                dev,
+            }
+        })
+        .collect())
+}
+
+/// PEP 503 name normalization: lowercase, with each run of `-`, `_` and `.`
+/// replaced by a single `-`.
+fn normalize_pypi_name(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut in_separator_run = false;
+    for c in name.chars() {
+        if matches!(c, '-' | '_' | '.') {
+            if !in_separator_run {
+                out.push('-');
+            }
+            in_separator_run = true;
+        } else {
+            out.extend(c.to_lowercase());
+            in_separator_run = false;
+        }
+    }
+    out
+}
+
 /// Strips a leading `===` or `==` pin operator from a version string.
 fn strip_pin(version: &str) -> &str {
     let version = version.trim();
@@ -324,5 +391,48 @@ mod tests {
         assert_eq!(warnings.len(), 2);
         assert!(warnings[0].contains("base.txt"));
         assert!(warnings[1].contains("dev.txt"));
+    }
+
+    const POETRY_LOCK: &str = include_str!("../../tests/fixtures/poetry.lock");
+
+    #[test]
+    fn poetry_lock_parses_packages_with_category_and_groups() {
+        let deps = parse_poetry_lock(POETRY_LOCK).unwrap();
+        assert_eq!(deps.len(), 5);
+        assert!(deps.iter().all(|d| d.ecosystem == Ecosystem::PyPI));
+        assert!(deps.iter().all(|d| !d.direct));
+
+        // No category or groups: treated as a runtime dependency.
+        let cors = find(&deps, "flask-cors");
+        assert_eq!(cors.version.as_deref(), Some("4.0.0"));
+        assert!(!cors.dev);
+
+        assert!(!find(&deps, "typing-extensions").dev);
+        // Old-style `category = "dev"`.
+        assert!(find(&deps, "pytest").dev);
+        // New-style `groups`: `main` plus another group is not dev-only.
+        assert!(!find(&deps, "ruamel-yaml").dev);
+        assert!(find(&deps, "black").dev);
+    }
+
+    #[test]
+    fn poetry_lock_without_packages_is_empty() {
+        assert!(parse_poetry_lock("[metadata]\nlock-version = \"2.0\"\n")
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn invalid_poetry_toml_is_an_error() {
+        assert!(parse_poetry_lock("[[package").is_err());
+    }
+
+    #[test]
+    fn pep_503_normalization() {
+        assert_eq!(normalize_pypi_name("Flask-Cors"), "flask-cors");
+        assert_eq!(normalize_pypi_name("typing_extensions"), "typing-extensions");
+        assert_eq!(normalize_pypi_name("ruamel.yaml"), "ruamel-yaml");
+        assert_eq!(normalize_pypi_name("Foo.-_Bar"), "foo-bar");
+        assert_eq!(normalize_pypi_name("requests"), "requests");
     }
 }

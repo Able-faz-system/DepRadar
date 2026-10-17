@@ -422,7 +422,7 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
   wired into `parse_file` for `requirements*.txt`. `name==version` (and
   `===`) pins are recorded; other specifiers (`>=`, `~=`, `==1.*`) and bare
   names get `version: None`. Comments, blank lines, `--hash` options
-  (including `\\` continuations), extras and environment markers are
+  (including `\` continuations), extras and environment markers are
   ignored. `-r other.txt` includes are not followed and come back as
   warnings from `parse_requirements_with_warnings`; other option lines
   (`-e`, `--index-url`, ...) are skipped silently. All entries are
@@ -430,4 +430,19 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Tests:** Unit tests for each line type. Not run in this change.
 - **By:** soma-enyi
 - **Closes:** #64
+- **Status:** In review.
+
+### scanner — poetry.lock parser
+
+- **What:** Adds `parse_poetry_lock` in [`pypi.rs`](src/lockfile/pypi.rs),
+  wired into `parse_file` for `poetry.lock`. Reads every `[[package]]`
+  entry (`name`, `version`, `category`/`groups`) with the `toml` crate and
+  applies PEP 503 name normalization (lowercase, runs of `-`, `_`, `.`
+  collapsed to `-`). `dev` is `true` for `category = "dev"` or for a
+  `groups` list without `main`; `direct` is always `false`.
+- **Tests:** Unit tests over the new `tests/fixtures/poetry.lock` fixture
+  (old `category` and new `groups` styles, name normalization). Not run in
+  this change.
+- **By:** soma-enyi
+- **Closes:** #65
 - **Status:** In review.
