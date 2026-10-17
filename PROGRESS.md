@@ -398,3 +398,19 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** soma-enyi
 - **Closes:** #62
 - **Status:** In review.
+
+### scanner — pnpm-lock.yaml parser (v6 and v9)
+
+- **What:** Adds `parse_pnpm_lock` in [`pnpm.rs`](src/lockfile/pnpm.rs),
+  wired into `parse_file` for `pnpm-lock.yaml`, and the `serde_yaml`
+  dependency (plus a `ParseError::Yaml` variant). Reads the `packages:`
+  section for both `/name@version` (v6) and `name@version` (v9) keys,
+  including scoped names; v6 peer-dependency suffixes such as
+  `(react@18.2.0)` are dropped. `dev` follows the v6 `dev:` field and is
+  `false` for v9, which doesn't record it; `direct` is always `false`.
+- **Tests:** Unit tests over new `pnpm-lock-v6.yaml` and
+  `pnpm-lock-v9.yaml` fixtures. Not run in this change; `Cargo.lock` is not
+  yet updated for `serde_yaml`.
+- **By:** soma-enyi
+- **Closes:** #63
+- **Status:** In review.

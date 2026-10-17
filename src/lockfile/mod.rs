@@ -5,6 +5,7 @@
 //!
 //! - [`cargo`] — `Cargo.lock`
 //! - [`npm`] — `package.json`
+//! - [`pnpm`] — `pnpm-lock.yaml` (v6 and v9)
 //! - [`pypi`] — `Pipfile.lock`
 //! - [`yarn`] — `yarn.lock` (v1)
 //!
@@ -20,6 +21,7 @@ use crate::model::Dependency;
 
 pub mod cargo;
 pub mod npm;
+pub mod pnpm;
 pub mod pypi;
 pub mod yarn;
 
@@ -79,8 +81,8 @@ pub fn parse_file(path: impl AsRef<Path>) -> Result<Vec<Dependency>, ParseError>
         LockfileKind::CargoLock => cargo::parse_cargo_lock,
         LockfileKind::PackageJson => npm::parse_package_json,
         LockfileKind::YarnLock => yarn::parse_yarn_lock,
+        LockfileKind::PnpmLock => pnpm::parse_pnpm_lock,
         LockfileKind::PackageLock
-        | LockfileKind::PnpmLock
         | LockfileKind::Requirements
         | LockfileKind::PoetryLock => return Err(ParseError::Unsupported(kind)),
     };
@@ -94,6 +96,8 @@ pub enum ParseError {
     Json(serde_json::Error),
     /// The file isn't valid TOML, or doesn't have the expected shape.
     Toml(toml::de::Error),
+    /// The file isn't valid YAML, or doesn't have the expected shape.
+    Yaml(serde_yaml::Error),
     /// The file couldn't be read.
     Io(io::Error),
     /// The file name isn't one [`detect`] recognises.
@@ -107,6 +111,7 @@ impl fmt::Display for ParseError {
         match self {
             ParseError::Json(err) => write!(f, "invalid JSON: {err}"),
             ParseError::Toml(err) => write!(f, "invalid TOML: {err}"),
+            ParseError::Yaml(err) => write!(f, "invalid YAML: {err}"),
             ParseError::Io(err) => write!(f, "couldn't read file: {err}"),
             ParseError::UnknownFile(path) => {
                 write!(f, "unrecognised lockfile name: {}", path.display())
@@ -121,6 +126,7 @@ impl std::error::Error for ParseError {
         match self {
             ParseError::Json(err) => Some(err),
             ParseError::Toml(err) => Some(err),
+            ParseError::Yaml(err) => Some(err),
             ParseError::Io(err) => Some(err),
             ParseError::UnknownFile(_) | ParseError::Unsupported(_) => None,
         }
@@ -136,6 +142,12 @@ impl From<serde_json::Error> for ParseError {
 impl From<toml::de::Error> for ParseError {
     fn from(err: toml::de::Error) -> Self {
         ParseError::Toml(err)
+    }
+}
+
+impl From<serde_yaml::Error> for ParseError {
+    fn from(err: serde_yaml::Error) -> Self {
+        ParseError::Yaml(err)
     }
 }
 
@@ -197,8 +209,8 @@ mod tests {
             Err(ParseError::UnknownFile(_))
         ));
         assert!(matches!(
-            parse_file("does/not/exist/pnpm-lock.yaml"),
-            Err(ParseError::Unsupported(LockfileKind::PnpmLock))
+            parse_file("does/not/exist/poetry.lock"),
+            Err(ParseError::Unsupported(LockfileKind::PoetryLock))
         ));
         assert!(matches!(
             parse_file("does/not/exist/Cargo.lock"),
