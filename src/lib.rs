@@ -5,4 +5,6 @@
 //! have landed are wired up here.
 
 pub mod cve;
+pub mod lockfile;
+pub mod model;
 pub mod typosquat;
