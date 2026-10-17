@@ -320,78 +320,67 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Closes:** N/A
 - **Status:** Merged.
 
-### scanner — `Pipfile.lock` parser
+### typosquat — top-N nearest matches
 
-- **What:** Starts the lockfile-parsing side of the scanner. Adds
-  `src/model.rs` with a minimal shared `Dependency { name, version,
-  ecosystem, direct, dev }` (reusing the OSV client's `Ecosystem` enum) for
-  every parser to return, and a new `src/lockfile/` module with a common
-  `ParseError`. `lockfile::pypi::parse_pipfile_lock(&str)` reads a Pipenv
-  `Pipfile.lock`: both the `default` and `develop` sections, with the `==`
-  (or `===`) pin stripped from each version and `develop` entries marked
-  `dev: true`. VCS/path entries with no `version` keep `version: None`.
-  `Pipfile.lock` doesn't distinguish declared from transitive packages, so
-  `direct` is `false`.
-- **Tests:** a fixture (`tests/fixtures/Pipfile.lock`) with runtime, dev and
-  git-sourced packages — asserts names, stripped versions and the dev flag;
-  missing sections parse as empty; invalid JSON is an error.
-- **By:** Barbieple-Devstem
-- **Closes:** #66
+- **What:** Adds `nearest_matches(candidate, dataset, n) -> Vec<(String, usize)>`
+  to [`distance.rs`](src/typosquat/distance.rs), returning up to `n` names
+  sorted by edit distance and then dataset order (a stable sort), so a
+  candidate equally close to two popular packages reports both.
+  `nearest_match` is now a thin wrapper (`n = 1`) and keeps its tie and
+  empty-dataset behavior.
+- **Tests:** not added in this change.
+- **By:** Maki
+- **Closes:** #36
 - **Status:** In review.
 
-### scanner — `Cargo.lock` parser
+### typosquat — BK-tree index for distance lookups
 
-- **What:** Lets DepRadar scan Rust projects, starting with its own.
-  `lockfile::cargo::parse_cargo_lock(&str)` reads `[[package]]` entries with
-  the `toml` crate (a new dependency) and returns each as a crates.io
-  `Dependency` with its pinned version. Packages without a `source` — the
-  workspace's own crates and local path dependencies — are skipped; both
-  registry and git sources are kept. `ParseError` gains a `Toml` variant.
-- **Tests:** parses this repo's own `Cargo.lock` and finds `soroban-sdk`,
-  while skipping the `deprader` and `deprader-router` workspace members; an
-  inline lockfile checks registry, git and source-less entries; invalid TOML
-  is an error.
-- **By:** Barbieple-Devstem
-- **Closes:** #67
+- **What:** Adds [`bktree.rs`](src/typosquat/bktree.rs), a BK-tree over the
+  dataset keyed by `levenshtein_distance`, with
+  `BkTree::within(candidate, max) -> Vec<(&str, usize)>`. Searches only
+  descend into children whose edge distance is within `max` of the current
+  node's distance (triangle inequality). Results are sorted by distance and
+  then dataset order, so they match a brute-force scan. Duplicate names
+  are stored once, at their first position. `score_package` now uses a
+  tree built once and cached in a `OnceLock`, over a cached dataset
+  (`dataset::popular_packages()`). The public API is unchanged.
+- **Tests:** the property test and criterion benchmark from the issue are
+  not included yet.
+- **By:** Maki
+- **Closes:** #35
 - **Status:** In review.
 
-### scanner — direct dependencies from `package.json`
+### typosquat — digit-for-letter swap detection
 
-- **What:** Lets a project be typosquat-checked even without a lockfile.
-  `lockfile::npm::parse_package_json(&str)` reads the names in
-  `dependencies`, `devDependencies`, `optionalDependencies` and
-  `peerDependencies` into npm `Dependency` values with `direct: true` and
-  `version: None` (the manifest only holds ranges). A name listed in several
-  sections is returned once, and is marked `dev` only when
-  `devDependencies` is the only section listing it.
-- **Tests:** a fixture (`tests/fixtures/package.json`) covering all four
-  sections, scoped names and a git spec, plus a package that is both a peer
-  and a dev dependency; a manifest with no dependency sections parses as
-  empty; invalid JSON is an error.
-- **By:** Barbieple-Devstem
-- **Closes:** #68
+- **What:** Adds a separate, opt-in normalization to
+  [`homoglyph.rs`](src/typosquat/homoglyph.rs): `normalize_digit_swaps`
+  folds `0→o`, `1→l`, `3→e`, `4→a`, `5→s`, and is not part of
+  `normalize_homoglyphs`. `digit_swap_impersonation` applies homoglyph
+  folding and then digit folding. It flags a name only if a digit was
+  actually swapped, the result is a popular package, and the name itself
+  isn't already in the dataset (so `boto3` and `h5py` aren't flagged, and
+  `i18n` is left alone because `8` isn't folded). The scanner reports it as
+  a new `ScanResult::digit_swap_match` with its own reason line:
+  `digit-for-letter swap impersonating popular package "lodash"`.
+- **Tests:** not added in this change.
+- **By:** Maki
+- **Closes:** #34
 - **Status:** In review.
 
-### scanner — auto-detect the lockfile type from its file name
+### typosquat — 0–100 confidence score
 
-- **What:** Users no longer have to say which parser to use. Adds
-  `LockfileKind` and `lockfile::detect(path) -> Option<LockfileKind>` to
-  `src/lockfile/mod.rs`, mapping `package-lock.json`, `yarn.lock`,
-  `pnpm-lock.yaml`, `requirements*.txt`, `poetry.lock`, `Pipfile.lock`,
-  `Cargo.lock` and `package.json` by file name (the directory is ignored).
-  `lockfile::parse_file(path) -> Result<Vec<Dependency>, ParseError>` reads
-  the file and dispatches to the matching parser. Today that's
-  `Pipfile.lock`, `Cargo.lock` and `package.json`; the other recognised
-  formats return `ParseError::Unsupported` until their parsers land (#60–#65),
-  and unrecognised names return `ParseError::UnknownFile`. Neither case
-  reads the file. `ParseError` gains `Io`, `UnknownFile` and `Unsupported`
-  variants.
-- **Tests:** a table-driven test over every supported file name (including
-  `requirements-*.txt` variants and a nested path) plus unknown ones
-  (`Gemfile.lock`, `requirements.in`, `Pipfile`, ...); `parse_file` against
-  the `Pipfile.lock` and `package.json` fixtures and this repo's
-  `Cargo.lock`; unknown, not-yet-supported and missing files map to the
-  right errors.
-- **By:** Barbieple-Devstem
-- **Closes:** #69
+- **What:** Adds `confidence: u8` to `ScanResult` in
+  [`scanner.rs`](src/typosquat/scanner.rs), computed by
+  `scanner::confidence`. The score has three parts: lookalike (50 if the
+  homoglyph or digit-swap signal fired), distance (`40 - 10 × distance`),
+  and popularity (5–20, from the new `dataset::popularity_rank`, which uses
+  each registry file's order). A clean name scores 0. The lookalike part is
+  worth more than distance plus popularity combined, so the ranking is
+  always both signals (75–100) > lookalike only (55–70) > distance only
+  (25–50). The doc comment documents the formula and gives worked examples
+  (`expresss` 40, full-width `requests` 65, `l0dash` 85, Cyrillic-`а`
+  `react` 100). `Display` now prints `likely typosquat (confidence N/100)`.
+- **Tests:** not added in this change.
+- **By:** Maki
+- **Closes:** #37
 - **Status:** In review.
