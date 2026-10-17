@@ -12,4 +12,7 @@ pub mod bktree;
 pub mod dataset;
 pub mod distance;
 pub mod homoglyph;
+pub mod keyboard;
+pub mod normalize;
 pub mod scanner;
+pub mod scope;

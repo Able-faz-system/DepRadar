@@ -88,6 +88,12 @@ impl fmt::Display for ScanResult {
                 f,
                 "\n  - edit distance {distance} from popular package \"{name}\""
             )?;
+            if self.keyboard_typo {
+                write!(
+                    f,
+                    "\n  - adjacent-key typo of \"{name}\" (likely accidental install)"
+                )?;
+            }
         }
         if let Some(name) = &self.homoglyph_match {
             write!(
@@ -218,6 +224,13 @@ mod tests {
     }
 
     #[test]
+    fn uppercase_popular_package_is_normalized_to_exact_match() {
+        let result = score_package("React");
+        assert_eq!(result.candidate, "React");
+        assert!(!result.is_likely_typosquat());
+    }
+
+    #[test]
     fn unrelated_name_is_not_flagged() {
         // Long and distinctive enough that its nearest dataset neighbour is
         // far past the threshold (verified: distance 26 to the closest npm
@@ -267,6 +280,58 @@ mod tests {
         assert!(rendered.contains("likely typosquat"));
         assert!(rendered.contains("edit distance 1 from popular package \"react\""));
         assert!(rendered.contains("homoglyph impersonation of popular package \"react\""));
+    }
+
+    #[test]
+    fn adjacent_key_typo_is_reported_as_a_reason() {
+        let result = score_package("reqiests");
+        assert_eq!(result.distance_match, Some(("requests".to_string(), 1)));
+        assert!(result.keyboard_typo);
+        assert!(result.to_string().contains("adjacent-key typo of \"requests\""));
+    }
+
+    #[test]
+    fn non_adjacent_substitution_is_not_a_keyboard_typo() {
+        let result = score_package("reqzests");
+        assert_eq!(result.distance_match, Some(("requests".to_string(), 1)));
+        assert!(!result.keyboard_typo);
+    }
+
+    #[test]
+    fn misspelled_scope_is_flagged_as_scope_confusion() {
+        let result = score_package("@typess/node");
+        assert_eq!(result.scope_confusion.as_deref(), Some("@types/node"));
+        assert!(result.is_likely_typosquat());
+        assert!(result
+            .to_string()
+            .contains("scope confusion with popular scoped package \"@types/node\""));
+    }
+
+    #[test]
+    fn dropped_scope_is_flagged_as_scope_confusion() {
+        let result = score_package("types-node");
+        assert_eq!(result.scope_confusion.as_deref(), Some("@types/node"));
+    }
+
+    #[test]
+    fn legitimate_scoped_package_is_not_flagged() {
+        let result = score_package("@types/node");
+        assert_eq!(result.scope_confusion, None);
+        assert!(!result.is_likely_typosquat());
+    }
+
+    #[test]
+    fn combosquat_is_flagged_with_reason() {
+        let result = score_package("lodash-utils");
+        assert_eq!(result.combosquat.as_deref(), Some("lodash"));
+        assert!(result.is_likely_typosquat());
+        assert!(result.to_string().contains("combosquat of popular package \"lodash\""));
+    }
+
+    #[test]
+    fn real_multi_word_package_is_not_a_combosquat() {
+        let result = score_package("react-dom");
+        assert_eq!(result.combosquat, None);
     }
 
     #[test]
