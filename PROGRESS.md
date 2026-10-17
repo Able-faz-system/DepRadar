@@ -455,3 +455,25 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Closes:** #76
 - **Status:** In review. Verified against the same pre-merge tree as #74,
   because `main` doesn't currently compile.
+
+### cli — `--format json` output
+
+- **What:** Adds a global `--format text|json` (`-f`, default `text`) to
+  `depradar`. In JSON mode, stdout holds exactly one pretty-printed JSON
+  document, and errors still go to stderr.
+  - `name` emits `{candidate, likely_typosquat, confidence, distance_match,
+    homoglyph_match, digit_swap_match}`.
+  - `scan` emits `{root, lockfiles: [...], errors: [...]}` whether given a
+    file or a directory. Each lockfile has `path`, `ecosystem` (OSV
+    spelling: `npm`, `PyPI`, `crates.io`), `summary`, `findings` (with
+    `kind: "typosquat" | "vulnerability"`), `suppressed` and `warnings`.
+  - A failed scan prints `{"error": "..."}` and exits 2, so stdout always
+    parses.
+
+  Exit codes are the same as in text mode.
+- **Tests:** `tests/cli.rs` parses all of stdout as a single JSON document
+  for `name`, a directory scan (findings grouped by lockfile) and a failed
+  scan. The `--help` snapshot is updated.
+- **By:** Able-faz-system
+- **Closes:** #77
+- **Status:** In review. Verified against the same pre-merge tree as #74.
