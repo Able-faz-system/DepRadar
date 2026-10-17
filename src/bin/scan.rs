@@ -1,8 +1,8 @@
 //! Manual CLI for the combined typosquat scorer.
 //!
 //! Usage: `scan <package-name>` — scores the given name against the bundled
-//! popular-package dataset with both the edit-distance and homoglyph signals
-//! and prints the result.
+//! popular-package dataset with the edit-distance, homoglyph and digit-swap
+//! signals and prints the result.
 
 use std::env;
 use std::process::ExitCode;

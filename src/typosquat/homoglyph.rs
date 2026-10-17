@@ -21,6 +21,12 @@
 //! forms, plus the full-width ASCII block handled as a contiguous range. It is
 //! deliberately conservative — every entry is a character an attacker would
 //! reach for, not an exhaustive Unicode confusable dump.
+//!
+//! Digit-for-letter swaps (`l0dash`, `requ3sts`) are handled by a separate,
+//! opt-in step — [`normalize_digit_swaps`] / [`digit_swap_impersonation`] —
+//! rather than the main table, because plenty of real packages legitimately
+//! contain digits (`d3`, `i18n`, `boto3`) and folding them unconditionally
+//! would change those names too.
 
 /// Maps a single character to its Latin equivalent if it is a known homoglyph,
 /// otherwise returns it unchanged.
@@ -96,6 +102,54 @@ pub fn normalize_homoglyphs(candidate: &str) -> String {
 pub fn homoglyph_impersonation(candidate: &str, dataset: &[String]) -> Option<String> {
     let normalized = normalize_homoglyphs(candidate);
     if normalized == candidate {
+        return None;
+    }
+    dataset.iter().find(|name| *name == &normalized).cloned()
+}
+
+/// Maps a digit commonly swapped for a lookalike letter back to that letter,
+/// otherwise returns `c` unchanged.
+fn fold_digit(c: char) -> char {
+    match c {
+        '0' => 'o',
+        '1' => 'l',
+        '3' => 'e',
+        '4' => 'a',
+        '5' => 's',
+        other => other,
+    }
+}
+
+/// Rewrites `candidate` with every swappable digit (`0`, `1`, `3`, `4`, `5`)
+/// replaced by the letter it imitates (`o`, `l`, `e`, `a`, `s`).
+///
+/// Separate from, and not applied by, [`normalize_homoglyphs`]: callers opt
+/// in by calling this (or [`digit_swap_impersonation`]) explicitly.
+pub fn normalize_digit_swaps(candidate: &str) -> String {
+    candidate.chars().map(fold_digit).collect()
+}
+
+/// Reports whether `candidate` impersonates a popular package by swapping
+/// letters for lookalike digits (`l0dash` -> `lodash`, `requ3sts` ->
+/// `requests`).
+///
+/// The candidate is first passed through [`normalize_homoglyphs`] (so a name
+/// mixing both tricks is still caught) and then [`normalize_digit_swaps`].
+/// Returns `Some(name)` when *all* hold:
+///
+/// 1. the homoglyph-normalised candidate is not itself in `dataset` — a real
+///    package whose name contains digits (`boto3`, `h5py`) is not flagged,
+/// 2. digit folding changed the name — at least one digit was swapped, and
+/// 3. the fully normalised form exactly matches an entry in `dataset`.
+///
+/// On a match the earliest `dataset` entry wins.
+pub fn digit_swap_impersonation(candidate: &str, dataset: &[String]) -> Option<String> {
+    let letters = normalize_homoglyphs(candidate);
+    if dataset.iter().any(|name| name == &letters) {
+        return None;
+    }
+    let normalized = normalize_digit_swaps(&letters);
+    if normalized == letters {
         return None;
     }
     dataset.iter().find(|name| *name == &normalized).cloned()
