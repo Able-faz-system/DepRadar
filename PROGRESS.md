@@ -410,3 +410,24 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
   breakage outside this change), so the tests were run against the
   pre-merge tree of PR #214 (`62e246c`), whose `pipeline.rs` matches
   `main`'s.
+
+### scanner — corpus of real-world lockfile fixtures
+
+- **What:** Adds one real lockfile per supported format under
+  `tests/fixtures/<ecosystem>/`, each copied unchanged from an MIT or
+  Apache-2.0 project: `npm/package-lock.json` and `npm/package.json`
+  (commander.js v15.0.0), `pypi/requirements-dev.txt` (requests),
+  `pypi/Pipfile.lock` (pipenv) and `cargo/Cargo.lock` (hyperfine v2.0.0).
+  All are under 200 KB. [`tests/fixtures/README.md`](tests/fixtures/README.md)
+  lists the pinned source link and license of every fixture, including the
+  existing hand-written ones. Every link was checked (HTTP 200), and every
+  real-world file was byte-compared against its upstream copy.
+- **Tests:** `tests/fixtures.rs` checks that there is a real file for each
+  format, that each one has a source/license row in the README, and that
+  each is under 200 KB.
+- **Notes:** Running `scan_dir` over the corpus flags 21 legitimate
+  packages in commander's lockfile as typosquats (e.g. `acorn`, `braces`,
+  `ms`, `slash`). These are false positives worth tuning against.
+- **By:** Able-faz-system
+- **Closes:** #75
+- **Status:** In review.
