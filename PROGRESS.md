@@ -319,3 +319,22 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** ALLEN-AYODEJI
 - **Closes:** N/A
 - **Status:** Merged.
+
+### Scanner models, npm lockfile parser, async OSV client
+
+- **What:**
+  - `src/model.rs`: shared `Dependency`, `Finding`, `FindingKind` and
+    `Severity` types (all `Serialize`), with `From<ScanResult>` and
+    `From<(Dependency, OsvVulnerability)>` conversions into `Finding`.
+  - `src/lockfile/npm.rs`: `parse_package_lock` reads lockfile v2/v3 (`packages`
+    map: nested and scoped `node_modules/...` paths, skips the root and
+    `link: true` entries, `dev: true` packages get `direct: false`) and
+    lockfile v1 (recursive `dependencies` tree).
+  - `async` cargo feature: `query_osv_async` / `query_osv_batch_async`, sharing
+    request building and status checks with the blocking `query_osv`. CI runs
+    `cargo test --features async`.
+- **Tests:** v1 and v3 lockfile fixtures in `tests/fixtures/`, both model
+  conversions, and an async OSV query (skipped without network).
+- **By:** Inkman007
+- **Closes:** #58, #59, #60, #61
+- **Status:** In review.

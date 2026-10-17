@@ -15,7 +15,7 @@ const OSV_QUERY_URL: &str = "https://api.osv.dev/v1/query";
 ///
 /// OSV's own ecosystem list is much larger, but the crawler only targets
 /// these three registries today; add variants here as more are wired up.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum Ecosystem {
     Npm,
     PyPI,
@@ -179,26 +179,81 @@ pub fn query_osv(
     ecosystem: Ecosystem,
     version: &str,
 ) -> Result<OsvQueryResponse, OsvClientError> {
-    let request_body = OsvQueryRequest {
+    let response = reqwest::blocking::Client::new()
+        .post(OSV_QUERY_URL)
+        .json(&build_request(package_name, ecosystem, version))
+        .send()
+        .map_err(OsvClientError::Request)?;
+
+    check_status(response.status())?;
+    response.json().map_err(OsvClientError::Decode)
+}
+
+/// Builds the `POST /v1/query` body; shared by the blocking and async clients.
+fn build_request<'a>(
+    package_name: &'a str,
+    ecosystem: Ecosystem,
+    version: &'a str,
+) -> OsvQueryRequest<'a> {
+    OsvQueryRequest {
         version,
         package: OsvPackageQuery {
             name: package_name,
             ecosystem: ecosystem.as_osv_str(),
         },
-    };
+    }
+}
 
-    let response = reqwest::blocking::Client::new()
+/// Maps a non-success HTTP status to [`OsvClientError::UnexpectedStatus`].
+fn check_status(status: reqwest::StatusCode) -> Result<(), OsvClientError> {
+    if status.is_success() {
+        Ok(())
+    } else {
+        Err(OsvClientError::UnexpectedStatus(status))
+    }
+}
+
+/// Non-blocking variant of [`query_osv`], for use inside an async runtime.
+#[cfg(feature = "async")]
+pub async fn query_osv_async(
+    package_name: &str,
+    ecosystem: Ecosystem,
+    version: &str,
+) -> Result<OsvQueryResponse, OsvClientError> {
+    query_with_client(&reqwest::Client::new(), package_name, ecosystem, version).await
+}
+
+/// Queries OSV for every `(package name, ecosystem, version)` in `packages`,
+/// reusing one HTTP client. Results are in input order; the first failure
+/// aborts the batch.
+#[cfg(feature = "async")]
+pub async fn query_osv_batch_async(
+    packages: &[(&str, Ecosystem, &str)],
+) -> Result<Vec<OsvQueryResponse>, OsvClientError> {
+    let client = reqwest::Client::new();
+    let mut responses = Vec::with_capacity(packages.len());
+    for &(name, ecosystem, version) in packages {
+        responses.push(query_with_client(&client, name, ecosystem, version).await?);
+    }
+    Ok(responses)
+}
+
+#[cfg(feature = "async")]
+async fn query_with_client(
+    client: &reqwest::Client,
+    package_name: &str,
+    ecosystem: Ecosystem,
+    version: &str,
+) -> Result<OsvQueryResponse, OsvClientError> {
+    let response = client
         .post(OSV_QUERY_URL)
-        .json(&request_body)
+        .json(&build_request(package_name, ecosystem, version))
         .send()
+        .await
         .map_err(OsvClientError::Request)?;
 
-    let status = response.status();
-    if !status.is_success() {
-        return Err(OsvClientError::UnexpectedStatus(status));
-    }
-
-    response.json().map_err(OsvClientError::Decode)
+    check_status(response.status())?;
+    response.json().await.map_err(OsvClientError::Decode)
 }
 
 #[cfg(test)]
@@ -244,5 +299,24 @@ mod tests {
         assert_eq!(Ecosystem::Npm.as_osv_str(), "npm");
         assert_eq!(Ecosystem::PyPI.as_osv_str(), "PyPI");
         assert_eq!(Ecosystem::CratesIo.as_osv_str(), "crates.io");
+    }
+
+    #[cfg(feature = "async")]
+    #[tokio::test]
+    async fn query_osv_async_finds_known_vulnerability_in_lodash() {
+        let packages = [("lodash", Ecosystem::Npm, "4.17.4")];
+        let responses = match query_osv_batch_async(&packages).await {
+            Ok(responses) => responses,
+            Err(err) => {
+                eprintln!("skipping: OSV query failed ({err}), likely no network access");
+                return;
+            }
+        };
+
+        assert_eq!(responses.len(), 1);
+        assert!(responses[0]
+            .vulns
+            .iter()
+            .any(|v| v.aliases.iter().any(|a| a == "CVE-2020-28500")));
     }
 }
