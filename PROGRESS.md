@@ -320,72 +320,67 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Closes:** N/A
 - **Status:** Merged.
 
-### typosquat scanner — npm name normalization (case and scope)
+### typosquat — top-N nearest matches
 
-- **What:** Adds `src/typosquat/normalize.rs`. `split_npm_name(&str)`
-  returns `(Option<scope>, bare_name)` (`@types/node` → `(Some("types"),
-  "node")`). `normalize_name` lowercases a candidate, and `score_package`
-  now scores the lowercased name, so `React` is an exact match for `react`
-  rather than a one-edit typo. `name_distance` compares scoped names
-  scope-to-scope plus name-to-name instead of as one raw string, and
-  `nearest_match` now uses it. How scoped names are compared is documented
-  in the module docs.
-- **Tests:** `@types/node` split, `React` → `react`, names without a scope,
-  and scope-aware distances (`@typess/node` vs `@types/node` → 1).
-- **By:** The-moving-man
-- **Closes:** #26
+- **What:** Adds `nearest_matches(candidate, dataset, n) -> Vec<(String, usize)>`
+  to [`distance.rs`](src/typosquat/distance.rs), returning up to `n` names
+  sorted by edit distance and then dataset order (a stable sort), so a
+  candidate equally close to two popular packages reports both.
+  `nearest_match` is now a thin wrapper (`n = 1`) and keeps its tie and
+  empty-dataset behavior.
+- **Tests:** not added in this change.
+- **By:** Maki
+- **Closes:** #36
 - **Status:** In review.
 
-### typosquat scanner — adjacent-key (keyboard) typo reason
+### typosquat — BK-tree index for distance lookups
 
-- **What:** Adds `src/typosquat/keyboard.rs` with a QWERTY adjacency map
-  (`keys_adjacent`) and `keyboard_typo(candidate, target) -> bool`, true
-  when the only edit is one substitution of a neighbouring key
-  (`reqiests` → `requests`, `i` next to `u`). `ScanResult` gains a
-  `keyboard_typo` flag, set when the distance match is such a typo, and
-  `Display` prints it as an extra "adjacent-key typo … (likely accidental
-  install)" reason. The threshold logic and `is_likely_typosquat` are
-  unchanged.
-- **Tests:** `reqiests`/`requests` → true; `reqzests`/`requests` → false;
-  identical names, insertions and multi-edit names → false; row and
-  cross-row adjacency; the scanner reports the reason.
-- **By:** The-moving-man
-- **Closes:** #29
+- **What:** Adds [`bktree.rs`](src/typosquat/bktree.rs), a BK-tree over the
+  dataset keyed by `levenshtein_distance`, with
+  `BkTree::within(candidate, max) -> Vec<(&str, usize)>`. Searches only
+  descend into children whose edge distance is within `max` of the current
+  node's distance (triangle inequality). Results are sorted by distance and
+  then dataset order, so they match a brute-force scan. Duplicate names
+  are stored once, at their first position. `score_package` now uses a
+  tree built once and cached in a `OnceLock`, over a cached dataset
+  (`dataset::popular_packages()`). The public API is unchanged.
+- **Tests:** the property test and criterion benchmark from the issue are
+  not included yet.
+- **By:** Maki
+- **Closes:** #35
 - **Status:** In review.
 
-### typosquat scanner — scope-confusion signal
+### typosquat — digit-for-letter swap detection
 
-- **What:** Adds `src/typosquat/scope.rs` with `scope_confusion(candidate,
-  dataset)`. It flags a scoped name whose scope is one edit from a popular
-  scope while the bare name matches (`@typess/node` → `@types/node`), and
-  an unscoped name equal to `<scope>-<name>` or `<scope><name>` of a
-  popular scoped package (`types-node`, `typesnode`). Names that are
-  themselves popular are never flagged. `ScanResult` gains
-  `scope_confusion: Option<String>`, which counts toward
-  `is_likely_typosquat` and is printed by `Display`. The npm dataset
-  gains five `@types/*` entries (`node`, `react`, `express`, `jest`,
-  `lodash`), which it had none of.
-- **Tests:** `@typess/node`, `types-node`, `typesnode` flag `@types/node`;
-  the legitimate `@types/node` is not flagged; a lookalike scope with an
-  unknown bare name and unrelated unscoped names are not flagged.
-- **By:** The-moving-man
-- **Closes:** #27
+- **What:** Adds a separate, opt-in normalization to
+  [`homoglyph.rs`](src/typosquat/homoglyph.rs): `normalize_digit_swaps`
+  folds `0→o`, `1→l`, `3→e`, `4→a`, `5→s`, and is not part of
+  `normalize_homoglyphs`. `digit_swap_impersonation` applies homoglyph
+  folding and then digit folding. It flags a name only if a digit was
+  actually swapped, the result is a popular package, and the name itself
+  isn't already in the dataset (so `boto3` and `h5py` aren't flagged, and
+  `i18n` is left alone because `8` isn't folded). The scanner reports it as
+  a new `ScanResult::digit_swap_match` with its own reason line:
+  `digit-for-letter swap impersonating popular package "lodash"`.
+- **Tests:** not added in this change.
+- **By:** Maki
+- **Closes:** #34
 - **Status:** In review.
 
-### typosquat scanner — combosquatting signal
+### typosquat — 0–100 confidence score
 
-- **What:** Adds `src/typosquat/combosquat.rs` with `combosquat(candidate,
-  dataset)`. The candidate is split on `-`, `_` and `.`; it is flagged when
-  a run of consecutive tokens is exactly a popular package and every other
-  token is a bait word (`lodash-utils`, `secure-react`). The longest
-  popular match wins (`babel-core-secure` → `babel-core`), and names that
-  are themselves popular (`react-dom`) are never flagged. The bait words
-  live in the `BAIT_WORDS` const slice so the list is easy to extend.
-  `ScanResult` gains `combosquat: Option<String>`, which counts toward
-  `is_likely_typosquat` and is printed by `Display`.
-- **Tests:** `lodash-utils` flags `lodash`; `react-dom` does not flag;
-  `babel-core-secure` flags `babel-core`; bait prefixes and `_` separators
-  flag; non-bait extra words and bait words alone do not.
-- **By:** The-moving-man
-- **Closes:** #28
+- **What:** Adds `confidence: u8` to `ScanResult` in
+  [`scanner.rs`](src/typosquat/scanner.rs), computed by
+  `scanner::confidence`. The score has three parts: lookalike (50 if the
+  homoglyph or digit-swap signal fired), distance (`40 - 10 × distance`),
+  and popularity (5–20, from the new `dataset::popularity_rank`, which uses
+  each registry file's order). A clean name scores 0. The lookalike part is
+  worth more than distance plus popularity combined, so the ranking is
+  always both signals (75–100) > lookalike only (55–70) > distance only
+  (25–50). The doc comment documents the formula and gives worked examples
+  (`expresss` 40, full-width `requests` 65, `l0dash` 85, Cyrillic-`а`
+  `react` 100). `Display` now prints `likely typosquat (confidence N/100)`.
+- **Tests:** not added in this change.
+- **By:** Maki
+- **Closes:** #37
 - **Status:** In review.
