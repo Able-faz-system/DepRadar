@@ -1,148 +1,115 @@
-//! Parser for npm's `package-lock.json` (lockfile v1, v2 and v3).
+//! npm lockfile and manifest parsers.
+
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Deserialize;
-use std::collections::BTreeMap;
 
-use crate::cve::osv_client::Ecosystem;
-use crate::model::Dependency;
+use super::ParseError;
+use crate::model::{Dependency, Ecosystem};
 
-/// Errors from parsing a `package-lock.json`.
-#[derive(Debug)]
-pub enum ParseError {
-    /// The input wasn't valid JSON of the expected shape.
-    Json(serde_json::Error),
-}
-
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParseError::Json(err) => write!(f, "invalid package-lock.json: {err}"),
-        }
-    }
-}
-
-impl std::error::Error for ParseError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            ParseError::Json(err) => Some(err),
-        }
-    }
-}
-
-#[derive(Deserialize)]
-struct Lockfile {
-    #[serde(rename = "lockfileVersion", default)]
-    lockfile_version: u32,
+/// The dependency sections of a `package.json`. Only the package names are
+/// used; the version ranges (or git/file/tag specs) they map to are ignored.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PackageJson {
     #[serde(default)]
-    packages: BTreeMap<String, Entry>,
+    dependencies: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
-    dependencies: BTreeMap<String, V1Entry>,
+    dev_dependencies: BTreeMap<String, serde_json::Value>,
+    #[serde(default)]
+    optional_dependencies: BTreeMap<String, serde_json::Value>,
+    #[serde(default)]
+    peer_dependencies: BTreeMap<String, serde_json::Value>,
 }
 
-#[derive(Deserialize)]
-struct Entry {
-    version: Option<String>,
-    #[serde(default)]
-    dev: bool,
-    #[serde(default)]
-    link: bool,
-}
-
-/// A lockfile v1 node: an entry plus its recursively nested dependencies.
-#[derive(Deserialize)]
-struct V1Entry {
-    #[serde(flatten)]
-    entry: Entry,
-    #[serde(default)]
-    dependencies: BTreeMap<String, V1Entry>,
-}
-
-/// Parses a `package-lock.json` into its resolved dependencies.
+/// Parses the direct dependencies declared in a `package.json`.
 ///
-/// Lockfile v2/v3 are read from the flat `packages` map; v1 (and v2 files
-/// without `packages`) from the nested `dependencies` tree. Packages
-/// flagged `dev: true` are returned with `direct: false`.
-pub fn parse_package_lock(input: &str) -> Result<Vec<Dependency>, ParseError> {
-    let lock: Lockfile = serde_json::from_str(input).map_err(ParseError::Json)?;
-    let mut deps = Vec::new();
+/// Without a lockfile there are no resolved versions, but the names a
+/// project depends on can still be typosquat-checked. Reads
+/// `dependencies`, `devDependencies`, `optionalDependencies` and
+/// `peerDependencies`; every entry is `direct: true` with `version: None`.
+///
+/// A name listed in more than one section is returned once. It's only
+/// marked `dev` when `devDependencies` is the only place it appears — a
+/// library commonly lists a peer dependency under `devDependencies` too, so
+/// it can run its own tests against it.
+pub fn parse_package_json(contents: &str) -> Result<Vec<Dependency>, ParseError> {
+    let manifest: PackageJson = serde_json::from_str(contents)?;
 
-    if lock.lockfile_version >= 2 && !lock.packages.is_empty() {
-        for (path, entry) in &lock.packages {
-            // "" is the root project; links point at workspace folders.
-            if path.is_empty() || entry.link {
-                continue;
-            }
-            // Nested installs look like "node_modules/a/node_modules/@s/b".
-            let name = path.rsplit("node_modules/").next().unwrap_or(path);
-            push(&mut deps, name, entry);
-        }
-    } else {
-        walk_v1(&lock.dependencies, &mut deps);
-    }
-    Ok(deps)
-}
+    let runtime = manifest
+        .dependencies
+        .into_keys()
+        .chain(manifest.optional_dependencies.into_keys())
+        .chain(manifest.peer_dependencies.into_keys())
+        .map(|name| (name, false));
+    let dev = manifest
+        .dev_dependencies
+        .into_keys()
+        .map(|name| (name, true));
 
-fn walk_v1(tree: &BTreeMap<String, V1Entry>, deps: &mut Vec<Dependency>) {
-    for (name, node) in tree {
-        push(deps, name, &node.entry);
-        walk_v1(&node.dependencies, deps);
-    }
-}
-
-fn push(deps: &mut Vec<Dependency>, name: &str, entry: &Entry) {
-    if let Some(version) = &entry.version {
-        deps.push(Dependency {
-            name: name.to_string(),
-            version: version.clone(),
+    let mut seen = BTreeSet::new();
+    Ok(runtime
+        .chain(dev)
+        .filter(|(name, _)| seen.insert(name.clone()))
+        .map(|(name, dev)| Dependency {
+            name,
+            version: None,
             ecosystem: Ecosystem::Npm,
-            direct: !entry.dev,
-        });
-    }
+            direct: true,
+            dev,
+        })
+        .collect())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn find<'a>(deps: &'a [Dependency], name: &str, version: &str) -> &'a Dependency {
+    const PACKAGE_JSON: &str = include_str!("../../tests/fixtures/package.json");
+
+    fn find<'a>(deps: &'a [Dependency], name: &str) -> &'a Dependency {
         deps.iter()
-            .find(|d| d.name == name && d.version == version)
-            .unwrap_or_else(|| panic!("{name}@{version} not found"))
+            .find(|d| d.name == name)
+            .unwrap_or_else(|| panic!("{name} not found in {deps:?}"))
     }
 
     #[test]
-    fn parses_v3_lockfile() {
-        let deps =
-            parse_package_lock(include_str!("../../tests/fixtures/package-lock-v3.json")).unwrap();
-        assert_eq!(deps.len(), 6);
-        assert!(find(&deps, "lodash", "4.17.21").direct);
-        // scoped
-        assert!(find(&deps, "@babel/core", "7.24.0").direct);
-        // nested copy under another package, next to the hoisted one
-        assert!(find(&deps, "ms", "2.0.0").direct);
-        assert!(find(&deps, "ms", "2.1.3").direct);
-        // dev
-        assert!(!find(&deps, "jest", "29.7.0").direct);
-        // root and link entries skipped
-        assert!(deps
-            .iter()
-            .all(|d| d.name != "my-app" && d.name != "local-pkg"));
+    fn parses_all_four_sections() {
+        let deps = parse_package_json(PACKAGE_JSON).unwrap();
+        assert!(deps.iter().all(|d| d.ecosystem == Ecosystem::Npm));
+        assert!(deps.iter().all(|d| d.direct && d.version.is_none()));
+
+        // dependencies
+        assert!(!find(&deps, "express").dev);
+        assert!(!find(&deps, "@angular/core").dev);
+        // devDependencies
+        assert!(find(&deps, "typescript").dev);
+        assert!(find(&deps, "@types/node").dev);
+        // optionalDependencies
+        assert!(!find(&deps, "fsevents").dev);
+        // peerDependencies
+        assert!(!find(&deps, "rxjs").dev);
     }
 
     #[test]
-    fn parses_v1_lockfile() {
-        let deps =
-            parse_package_lock(include_str!("../../tests/fixtures/package-lock-v1.json")).unwrap();
-        assert_eq!(deps.len(), 6);
-        assert!(find(&deps, "lodash", "4.17.21").direct);
-        assert!(find(&deps, "@babel/core", "7.24.0").direct);
-        assert!(find(&deps, "ms", "2.0.0").direct);
-        assert!(find(&deps, "ms", "2.1.3").direct);
-        assert!(!find(&deps, "jest", "29.7.0").direct);
+    fn names_in_several_sections_are_listed_once() {
+        let deps = parse_package_json(PACKAGE_JSON).unwrap();
+        assert_eq!(deps.len(), 8);
+
+        // Both a peer and a dev dependency: kept once, not dev-only.
+        let react: Vec<_> = deps.iter().filter(|d| d.name == "react").collect();
+        assert_eq!(react.len(), 1);
+        assert!(!react[0].dev);
     }
 
     #[test]
-    fn rejects_invalid_json() {
-        assert!(parse_package_lock("not json").is_err());
+    fn missing_sections_are_empty() {
+        let deps = parse_package_json(r#"{"name": "empty", "version": "1.0.0"}"#).unwrap();
+        assert!(deps.is_empty());
+    }
+
+    #[test]
+    fn invalid_json_is_an_error() {
+        assert!(parse_package_json("{").is_err());
     }
 }

@@ -320,21 +320,67 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Closes:** N/A
 - **Status:** Merged.
 
-### Scanner models, npm lockfile parser, async OSV client
+### typosquat — top-N nearest matches
 
-- **What:**
-  - `src/model.rs`: shared `Dependency`, `Finding`, `FindingKind` and
-    `Severity` types (all `Serialize`), with `From<ScanResult>` and
-    `From<(Dependency, OsvVulnerability)>` conversions into `Finding`.
-  - `src/lockfile/npm.rs`: `parse_package_lock` reads lockfile v2/v3 (`packages`
-    map: nested and scoped `node_modules/...` paths, skips the root and
-    `link: true` entries, `dev: true` packages get `direct: false`) and
-    lockfile v1 (recursive `dependencies` tree).
-  - `async` cargo feature: `query_osv_async` / `query_osv_batch_async`, sharing
-    request building and status checks with the blocking `query_osv`. CI runs
-    `cargo test --features async`.
-- **Tests:** v1 and v3 lockfile fixtures in `tests/fixtures/`, both model
-  conversions, and an async OSV query (skipped without network).
-- **By:** Inkman007
-- **Closes:** #58, #59, #60, #61
+- **What:** Adds `nearest_matches(candidate, dataset, n) -> Vec<(String, usize)>`
+  to [`distance.rs`](src/typosquat/distance.rs), returning up to `n` names
+  sorted by edit distance and then dataset order (a stable sort), so a
+  candidate equally close to two popular packages reports both.
+  `nearest_match` is now a thin wrapper (`n = 1`) and keeps its tie and
+  empty-dataset behavior.
+- **Tests:** not added in this change.
+- **By:** Maki
+- **Closes:** #36
+- **Status:** In review.
+
+### typosquat — BK-tree index for distance lookups
+
+- **What:** Adds [`bktree.rs`](src/typosquat/bktree.rs), a BK-tree over the
+  dataset keyed by `levenshtein_distance`, with
+  `BkTree::within(candidate, max) -> Vec<(&str, usize)>`. Searches only
+  descend into children whose edge distance is within `max` of the current
+  node's distance (triangle inequality). Results are sorted by distance and
+  then dataset order, so they match a brute-force scan. Duplicate names
+  are stored once, at their first position. `score_package` now uses a
+  tree built once and cached in a `OnceLock`, over a cached dataset
+  (`dataset::popular_packages()`). The public API is unchanged.
+- **Tests:** the property test and criterion benchmark from the issue are
+  not included yet.
+- **By:** Maki
+- **Closes:** #35
+- **Status:** In review.
+
+### typosquat — digit-for-letter swap detection
+
+- **What:** Adds a separate, opt-in normalization to
+  [`homoglyph.rs`](src/typosquat/homoglyph.rs): `normalize_digit_swaps`
+  folds `0→o`, `1→l`, `3→e`, `4→a`, `5→s`, and is not part of
+  `normalize_homoglyphs`. `digit_swap_impersonation` applies homoglyph
+  folding and then digit folding. It flags a name only if a digit was
+  actually swapped, the result is a popular package, and the name itself
+  isn't already in the dataset (so `boto3` and `h5py` aren't flagged, and
+  `i18n` is left alone because `8` isn't folded). The scanner reports it as
+  a new `ScanResult::digit_swap_match` with its own reason line:
+  `digit-for-letter swap impersonating popular package "lodash"`.
+- **Tests:** not added in this change.
+- **By:** Maki
+- **Closes:** #34
+- **Status:** In review.
+
+### typosquat — 0–100 confidence score
+
+- **What:** Adds `confidence: u8` to `ScanResult` in
+  [`scanner.rs`](src/typosquat/scanner.rs), computed by
+  `scanner::confidence`. The score has three parts: lookalike (50 if the
+  homoglyph or digit-swap signal fired), distance (`40 - 10 × distance`),
+  and popularity (5–20, from the new `dataset::popularity_rank`, which uses
+  each registry file's order). A clean name scores 0. The lookalike part is
+  worth more than distance plus popularity combined, so the ranking is
+  always both signals (75–100) > lookalike only (55–70) > distance only
+  (25–50). The doc comment documents the formula and gives worked examples
+  (`expresss` 40, full-width `requests` 65, `l0dash` 85, Cyrillic-`а`
+  `react` 100). `Display` now prints `likely typosquat (confidence N/100)`.
+- **Tests:** not added in this change.
+- **By:** Maki
+- **Closes:** #37
 - **Status:** In review.
