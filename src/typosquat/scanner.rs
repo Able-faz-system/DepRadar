@@ -16,13 +16,29 @@ use super::dataset::{popular_packages, popularity_rank};
 use super::homoglyph::{digit_swap_impersonation, homoglyph_impersonation};
 
 /// Maximum edit distance from a popular package name that counts as
-/// "suspiciously close" rather than coincidental.
+/// "suspiciously close" rather than coincidental, scaled by the length (in
+/// characters) of the candidate name.
+///
+/// A fixed threshold is far too loose for short names: `ms`, `qs` and `ws`
+/// are all within two edits of each other, so a single cut-off would flag
+/// most two- and three-letter packages. Short names get no tolerance, medium
+/// names one edit, and longer names two:
+///
+/// | Candidate length | Threshold | Example                            |
+/// |------------------|-----------|------------------------------------|
+/// | 0-3              | 0         | `ms` vs `qs` is not flagged        |
+/// | 4-6              | 1         | `reakt` -> `react` is flagged      |
+/// | 7+               | 2         | `expresss` -> `express` is flagged |
 ///
 /// A distance of 0 is an exact match — the real package, not a typosquat —
-/// and is never flagged regardless of this threshold. 1-2 covers the classic
-/// single-keystroke typo (`expresss`, `requezts`); anything farther is
-/// treated as unrelated.
-pub const DISTANCE_THRESHOLD: usize = 2;
+/// and is never flagged regardless of this threshold.
+pub fn threshold_for(len: usize) -> usize {
+    match len {
+        0..=3 => 0,
+        4..=6 => 1,
+        _ => 2,
+    }
+}
 
 /// Result of scoring a candidate package name against the typosquat
 /// signals.
