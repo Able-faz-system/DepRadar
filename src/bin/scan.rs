@@ -1,14 +1,8 @@
 //! Manual CLI for the scanner.
 //!
-//! Usage:
-//!
-//! - `scan <lockfile>` — scans a `package-lock.json` or `requirements.txt`
-//!   for typosquats and known vulnerabilities (via OSV) and prints the
-//!   report. Findings accepted in a `.depradarignore` next to the lockfile
-//!   are listed separately and don't count. Exits 1 if there are
-//!   unsuppressed findings, 2 if the scan couldn't run.
-//! - `scan <package-name>` — scores a single name against the bundled
-//!   popular-package dataset with both typosquat signals.
+//! Usage: `scan <package-name>` — scores the given name against the bundled
+//! popular-package dataset with the edit-distance, homoglyph and digit-swap
+//! signals and prints the result.
 
 use std::env;
 use std::path::Path;

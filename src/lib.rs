@@ -10,10 +10,8 @@
 //! anything accepted in a `.depradarignore` file ([`ignore`]).
 
 pub mod cve;
-pub mod ignore;
 pub mod lockfile;
 pub mod model;
-pub mod pipeline;
 pub mod typosquat;
 
 pub use pipeline::{scan_lockfile, Report, ScanOptions};
