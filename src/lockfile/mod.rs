@@ -6,6 +6,7 @@
 //! - [`cargo`] — `Cargo.lock`
 //! - [`npm`] — `package.json`
 //! - [`pypi`] — `Pipfile.lock`
+//! - [`yarn`] — `yarn.lock` (v1)
 //!
 //! [`detect`] works out which format a file is from its name, and
 //! [`parse_file`] reads a file and dispatches it to the matching parser.
@@ -20,6 +21,7 @@ use crate::model::Dependency;
 pub mod cargo;
 pub mod npm;
 pub mod pypi;
+pub mod yarn;
 
 /// A lockfile or manifest format DepRadar recognises by file name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,8 +78,8 @@ pub fn parse_file(path: impl AsRef<Path>) -> Result<Vec<Dependency>, ParseError>
         LockfileKind::PipfileLock => pypi::parse_pipfile_lock,
         LockfileKind::CargoLock => cargo::parse_cargo_lock,
         LockfileKind::PackageJson => npm::parse_package_json,
+        LockfileKind::YarnLock => yarn::parse_yarn_lock,
         LockfileKind::PackageLock
-        | LockfileKind::YarnLock
         | LockfileKind::PnpmLock
         | LockfileKind::Requirements
         | LockfileKind::PoetryLock => return Err(ParseError::Unsupported(kind)),
@@ -195,8 +197,8 @@ mod tests {
             Err(ParseError::UnknownFile(_))
         ));
         assert!(matches!(
-            parse_file("does/not/exist/yarn.lock"),
-            Err(ParseError::Unsupported(LockfileKind::YarnLock))
+            parse_file("does/not/exist/pnpm-lock.yaml"),
+            Err(ParseError::Unsupported(LockfileKind::PnpmLock))
         ));
         assert!(matches!(
             parse_file("does/not/exist/Cargo.lock"),

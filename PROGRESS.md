@@ -384,3 +384,17 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** Maki
 - **Closes:** #37
 - **Status:** In review.
+
+### scanner — yarn.lock (v1) parser
+
+- **What:** Adds `parse_yarn_lock` in [`yarn.rs`](src/lockfile/yarn.rs) and
+  wires it into `parse_file` for `yarn.lock`. Reads each entry header
+  (`"name@^1.0.0", name@~1.1:`, including scoped names and several
+  specifiers per entry) and its `version "x.y.z"` field; each
+  `(name, version)` pair is returned once. `direct` and `dev` are `false`
+  because the format doesn't record them.
+- **Tests:** Unit tests over the new `tests/fixtures/yarn.lock` fixture
+  (scoped, multi-specifier and exact entries). Not run in this change.
+- **By:** soma-enyi
+- **Closes:** #62
+- **Status:** In review.
