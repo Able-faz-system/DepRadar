@@ -384,3 +384,29 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** Maki
 - **Closes:** #37
 - **Status:** In review.
+
+### scanner — recursive directory / monorepo scan
+
+- **What:** Adds `pipeline::scan_dir(root, opts)` in
+  [`pipeline.rs`](src/pipeline.rs). It walks the tree, skipping
+  `node_modules`, `.git`, `target`, `dist` (`pipeline::SKIPPED_DIRS`) and
+  symlinks, and runs the existing `scan_lockfile` on every file it
+  recognises as a lockfile. So `scan_dir` supports exactly the formats a
+  single-file scan does. It returns a `DirReport` with one `Report` per
+  lockfile, sorted by path and keyed by the path relative to the root.
+  Lockfiles that are found but can't be parsed or checked go into
+  `DirReport::errors` instead of aborting the scan. `DirReport` implements
+  `Display` (one section per lockfile) and `has_findings`.
+- **Tests:** `tests/scan_dir.rs` builds a temp-dir tree with a
+  `package-lock.json` and a `requirements.txt`, plus lockfiles inside
+  `node_modules` and `target` that must be skipped. It asserts that exactly
+  the two lockfiles are reported, grouped by path, that `expresss` is
+  flagged, and that nothing from the skipped directories appears. Also
+  covers a malformed lockfile (reported, scan continues) and a missing root
+  (error).
+- **By:** Able-faz-system
+- **Closes:** #74
+- **Status:** In review. `main` doesn't compile at the moment (merge
+  breakage outside this change), so the tests were run against the
+  pre-merge tree of PR #214 (`62e246c`), whose `pipeline.rs` matches
+  `main`'s.
