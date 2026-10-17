@@ -44,6 +44,8 @@ impl Ecosystem {
 struct OsvQueryRequest<'a> {
     version: &'a str,
     package: OsvPackageQuery<'a>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    page_token: Option<&'a str>,
 }
 
 #[derive(Debug, Serialize)]
@@ -166,6 +168,8 @@ pub struct OsvVulnerability {
     pub affected: Vec<OsvAffected>,
     #[serde(default)]
     pub references: Vec<OsvReference>,
+    /// Source-specific extras; GHSA records carry a `severity` label here.
+    pub database_specific: Option<serde_json::Value>,
 }
 
 /// Response body of `POST /v1/query`: the list of vulnerabilities matching
@@ -174,6 +178,8 @@ pub struct OsvVulnerability {
 pub struct OsvQueryResponse {
     #[serde(default)]
     pub vulns: Vec<OsvVulnerability>,
+    /// Set when OSV truncated the result; pass back as `page_token`.
+    pub next_page_token: Option<String>,
 }
 
 /// Errors from querying OSV.
@@ -227,17 +233,61 @@ pub fn query_osv(
     ecosystem: Ecosystem,
     version: &str,
 ) -> Result<OsvQueryResponse, OsvClientError> {
-    let request_body = OsvQueryRequest {
-        version,
-        package: OsvPackageQuery {
-            name: package_name,
-            ecosystem: ecosystem.as_osv_str(),
-        },
-    };
+    query_osv_at(OSV_BASE_URL, package_name, ecosystem, version)
+}
 
+/// Fetches the full record for one vulnerability via `GET /v1/vulns/{id}`.
+///
+/// Batch/query results can be sparse; this returns the complete advisory
+/// (summary, severity, references).
+pub fn get_vulnerability(id: &str) -> Result<OsvVulnerability, OsvClientError> {
+    get_vulnerability_at(OSV_BASE_URL, id)
+}
+
+fn query_osv_at(
+    base_url: &str,
+    package_name: &str,
+    ecosystem: Ecosystem,
+    version: &str,
+) -> Result<OsvQueryResponse, OsvClientError> {
+    let client = reqwest::blocking::Client::new();
+    let url = format!("{base_url}/v1/query");
+    let mut merged = OsvQueryResponse::default();
+    let mut page_token: Option<String> = None;
+
+    loop {
+        let request_body = OsvQueryRequest {
+            version,
+            package: OsvPackageQuery {
+                name: package_name,
+                ecosystem: ecosystem.as_osv_str(),
+            },
+            page_token: page_token.as_deref(),
+        };
+
+        let response = client
+            .post(&url)
+            .json(&request_body)
+            .send()
+            .map_err(OsvClientError::Request)?;
+
+        let status = response.status();
+        if !status.is_success() {
+            return Err(OsvClientError::UnexpectedStatus(status));
+        }
+
+        let page: OsvQueryResponse = response.json().map_err(OsvClientError::Decode)?;
+        merged.vulns.extend(page.vulns);
+        match page.next_page_token {
+            Some(token) if !token.is_empty() => page_token = Some(token),
+            _ => return Ok(merged),
+        }
+    }
+}
+
+fn get_vulnerability_at(base_url: &str, id: &str) -> Result<OsvVulnerability, OsvClientError> {
     let response = reqwest::blocking::Client::new()
-        .post(OSV_QUERY_URL)
-        .json(&request_body)
+        .get(format!("{base_url}/v1/vulns/{id}"))
         .send()
         .map_err(OsvClientError::Request)?;
 
@@ -343,5 +393,100 @@ mod tests {
         assert_eq!(Ecosystem::Npm.as_osv_str(), "npm");
         assert_eq!(Ecosystem::PyPI.as_osv_str(), "PyPI");
         assert_eq!(Ecosystem::CratesIo.as_osv_str(), "crates.io");
+    }
+
+    /// Serves each canned `(status, body)` in order, one per connection,
+    /// and returns the base URL plus every raw request received.
+    fn mock_server(
+        responses: Vec<(u16, &'static str)>,
+    ) -> (String, std::thread::JoinHandle<Vec<String>>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let handle = std::thread::spawn(move || {
+            let mut requests = Vec::new();
+            for (status, body) in responses {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut buf = [0u8; 8192];
+                let mut req = Vec::new();
+                loop {
+                    let n = stream.read(&mut buf).unwrap();
+                    req.extend_from_slice(&buf[..n]);
+                    let text = String::from_utf8_lossy(&req);
+                    if let Some(split) = text.find("\r\n\r\n") {
+                        let len = text[..split]
+                            .to_lowercase()
+                            .lines()
+                            .find_map(|l| {
+                                l.strip_prefix("content-length:")
+                                    .map(|v| v.trim().parse().unwrap())
+                            })
+                            .unwrap_or(0usize);
+                        if req.len() >= split + 4 + len {
+                            break;
+                        }
+                    }
+                }
+                requests.push(String::from_utf8_lossy(&req).into_owned());
+                write!(
+                    stream,
+                    "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                )
+                .unwrap();
+            }
+            requests
+        });
+        (base, handle)
+    }
+
+    #[test]
+    fn query_osv_follows_pagination_and_merges_pages() {
+        let (base, handle) = mock_server(vec![
+            (200, r#"{"vulns":[{"id":"A"}],"next_page_token":"tok1"}"#),
+            (200, r#"{"vulns":[{"id":"B"},{"id":"C"}]}"#),
+        ]);
+
+        let response = query_osv_at(&base, "lodash", Ecosystem::Npm, "4.17.4").unwrap();
+        let ids: Vec<_> = response.vulns.iter().map(|v| v.id.as_str()).collect();
+        assert_eq!(ids, ["A", "B", "C"]);
+
+        let requests = handle.join().unwrap();
+        assert!(!requests[0].contains("page_token"));
+        assert!(requests[1].contains(r#""page_token":"tok1""#));
+    }
+
+    #[test]
+    fn get_vulnerability_parses_full_record() {
+        let (base, handle) = mock_server(vec![(
+            200,
+            r#"{"id":"GHSA-29mw-wpgm-hmr9","summary":"ReDoS in lodash","aliases":["CVE-2020-28500"]}"#,
+        )]);
+
+        let vuln = get_vulnerability_at(&base, "GHSA-29mw-wpgm-hmr9").unwrap();
+        assert_eq!(vuln.id, "GHSA-29mw-wpgm-hmr9");
+        assert_eq!(vuln.summary.as_deref(), Some("ReDoS in lodash"));
+        assert!(handle.join().unwrap()[0].starts_with("GET /v1/vulns/GHSA-29mw-wpgm-hmr9 "));
+    }
+
+    #[test]
+    fn get_vulnerability_reports_unexpected_status() {
+        let (base, _handle) = mock_server(vec![(404, "{}")]);
+        assert!(matches!(
+            get_vulnerability_at(&base, "NOPE"),
+            Err(OsvClientError::UnexpectedStatus(s)) if s.as_u16() == 404
+        ));
+    }
+
+    /// Live check; skipped when the network is unavailable.
+    #[test]
+    fn get_vulnerability_live_ghsa_29mw_wpgm_hmr9() {
+        match get_vulnerability("GHSA-29mw-wpgm-hmr9") {
+            Ok(vuln) => {
+                assert_eq!(vuln.id, "GHSA-29mw-wpgm-hmr9");
+                assert!(vuln.aliases.iter().any(|a| a == "CVE-2020-28500"));
+            }
+            Err(err) => eprintln!("skipping: OSV request failed ({err}), likely no network"),
+        }
     }
 }
