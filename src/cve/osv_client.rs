@@ -9,7 +9,11 @@
 
 use serde::{Deserialize, Serialize};
 
-const OSV_BASE_URL: &str = "https://api.osv.dev";
+const OSV_QUERY_URL: &str = "https://api.osv.dev/v1/query";
+const OSV_QUERYBATCH_URL: &str = "https://api.osv.dev/v1/querybatch";
+
+/// Maximum number of queries OSV accepts in one `POST /v1/querybatch` call.
+pub const OSV_BATCH_LIMIT: usize = 1000;
 
 /// Package registries `query_osv` can query OSV against.
 ///
@@ -48,6 +52,42 @@ struct OsvQueryRequest<'a> {
 struct OsvPackageQuery<'a> {
     name: &'a str,
     ecosystem: &'a str,
+}
+
+/// One package version to look up with [`query_osv_batch`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OsvBatchQuery<'a> {
+    pub name: &'a str,
+    pub ecosystem: Ecosystem,
+    pub version: &'a str,
+}
+
+/// Request body for `POST /v1/querybatch`.
+#[derive(Debug, Serialize)]
+struct OsvBatchRequest<'a> {
+    queries: Vec<OsvQueryRequest<'a>>,
+}
+
+/// Response body of `POST /v1/querybatch`: one result per query, in order.
+#[derive(Debug, Deserialize)]
+struct OsvBatchResponse {
+    #[serde(default)]
+    results: Vec<OsvBatchResult>,
+}
+
+/// The vulnerabilities matching one query of a batch. Batch results only
+/// carry IDs; fetch `GET /v1/vulns/{id}` for the full record.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct OsvBatchResult {
+    #[serde(default)]
+    pub vulns: Vec<OsvVulnerabilityRef>,
+}
+
+/// A vulnerability as listed in a batch result.
+#[derive(Debug, Clone, Deserialize)]
+pub struct OsvVulnerabilityRef {
+    pub id: String,
+    pub modified: Option<String>,
 }
 
 /// The package identity as OSV echoes it back inside an `affected` entry.
@@ -151,6 +191,8 @@ pub enum OsvClientError {
     UnexpectedStatus(reqwest::StatusCode),
     /// The response body wasn't the JSON shape `OsvQueryResponse` expects.
     Decode(reqwest::Error),
+    /// A batch response didn't have exactly one result per query.
+    BatchSizeMismatch { expected: usize, got: usize },
 }
 
 impl std::fmt::Display for OsvClientError {
@@ -161,6 +203,10 @@ impl std::fmt::Display for OsvClientError {
                 write!(f, "OSV returned unexpected status: {status}")
             }
             OsvClientError::Decode(err) => write!(f, "failed to decode OSV response: {err}"),
+            OsvClientError::BatchSizeMismatch { expected, got } => write!(
+                f,
+                "OSV batch response had {got} results for {expected} queries"
+            ),
         }
     }
 }
@@ -169,7 +215,9 @@ impl std::error::Error for OsvClientError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             OsvClientError::Request(err) | OsvClientError::Decode(err) => Some(err),
-            OsvClientError::UnexpectedStatus(_) => None,
+            OsvClientError::UnexpectedStatus(_) | OsvClientError::BatchSizeMismatch { .. } => {
+                None
+            }
         }
     }
 }
@@ -249,6 +297,57 @@ fn get_vulnerability_at(base_url: &str, id: &str) -> Result<OsvVulnerability, Os
     }
 
     response.json().map_err(OsvClientError::Decode)
+}
+
+/// Queries OSV for many package versions at once via
+/// [`POST /v1/querybatch`](https://google.github.io/osv.dev/api/#post-v1querybatch),
+/// splitting into requests of at most [`OSV_BATCH_LIMIT`] queries.
+///
+/// Returns one [`OsvBatchResult`] per query, in the same order. A query with
+/// more matches than fit on one OSV results page is truncated to that first
+/// page; pagination isn't followed yet.
+pub fn query_osv_batch(
+    queries: &[OsvBatchQuery<'_>],
+) -> Result<Vec<OsvBatchResult>, OsvClientError> {
+    let client = reqwest::blocking::Client::new();
+    let mut results = Vec::with_capacity(queries.len());
+
+    for chunk in queries.chunks(OSV_BATCH_LIMIT) {
+        let request_body = OsvBatchRequest {
+            queries: chunk
+                .iter()
+                .map(|query| OsvQueryRequest {
+                    version: query.version,
+                    package: OsvPackageQuery {
+                        name: query.name,
+                        ecosystem: query.ecosystem.as_osv_str(),
+                    },
+                })
+                .collect(),
+        };
+
+        let response = client
+            .post(OSV_QUERYBATCH_URL)
+            .json(&request_body)
+            .send()
+            .map_err(OsvClientError::Request)?;
+
+        let status = response.status();
+        if !status.is_success() {
+            return Err(OsvClientError::UnexpectedStatus(status));
+        }
+
+        let batch: OsvBatchResponse = response.json().map_err(OsvClientError::Decode)?;
+        if batch.results.len() != chunk.len() {
+            return Err(OsvClientError::BatchSizeMismatch {
+                expected: chunk.len(),
+                got: batch.results.len(),
+            });
+        }
+        results.extend(batch.results);
+    }
+
+    Ok(results)
 }
 
 #[cfg(test)]
