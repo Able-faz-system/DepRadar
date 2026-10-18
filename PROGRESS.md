@@ -385,95 +385,64 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Closes:** #37
 - **Status:** In review.
 
-### scanner — recursive directory / monorepo scan
+### scanner — yarn.lock (v1) parser
 
-- **What:** Adds `pipeline::scan_dir(root, opts)` in
-  [`pipeline.rs`](src/pipeline.rs). It walks the tree, skipping
-  `node_modules`, `.git`, `target`, `dist` (`pipeline::SKIPPED_DIRS`) and
-  symlinks, and runs the existing `scan_lockfile` on every file it
-  recognises as a lockfile. So `scan_dir` supports exactly the formats a
-  single-file scan does. It returns a `DirReport` with one `Report` per
-  lockfile, sorted by path and keyed by the path relative to the root.
-  Lockfiles that are found but can't be parsed or checked go into
-  `DirReport::errors` instead of aborting the scan. `DirReport` implements
-  `Display` (one section per lockfile) and `has_findings`.
-- **Tests:** `tests/scan_dir.rs` builds a temp-dir tree with a
-  `package-lock.json` and a `requirements.txt`, plus lockfiles inside
-  `node_modules` and `target` that must be skipped. It asserts that exactly
-  the two lockfiles are reported, grouped by path, that `expresss` is
-  flagged, and that nothing from the skipped directories appears. Also
-  covers a malformed lockfile (reported, scan continues) and a missing root
-  (error).
-- **By:** Able-faz-system
-- **Closes:** #74
-- **Status:** In review. `main` doesn't compile at the moment (merge
-  breakage outside this change), so the tests were run against the
-  pre-merge tree of PR #214 (`62e246c`), whose `pipeline.rs` matches
-  `main`'s.
-
-### scanner — corpus of real-world lockfile fixtures
-
-- **What:** Adds one real lockfile per supported format under
-  `tests/fixtures/<ecosystem>/`, each copied unchanged from an MIT or
-  Apache-2.0 project: `npm/package-lock.json` and `npm/package.json`
-  (commander.js v15.0.0), `pypi/requirements-dev.txt` (requests),
-  `pypi/Pipfile.lock` (pipenv) and `cargo/Cargo.lock` (hyperfine v2.0.0).
-  All are under 200 KB. [`tests/fixtures/README.md`](tests/fixtures/README.md)
-  lists the pinned source link and license of every fixture, including the
-  existing hand-written ones. Every link was checked (HTTP 200), and every
-  real-world file was byte-compared against its upstream copy.
-- **Tests:** `tests/fixtures.rs` checks that there is a real file for each
-  format, that each one has a source/license row in the README, and that
-  each is under 200 KB.
-- **Notes:** Running `scan_dir` over the corpus flags 21 legitimate
-  packages in commander's lockfile as typosquats (e.g. `acorn`, `braces`,
-  `ms`, `slash`). These are false positives worth tuning against.
-- **By:** Able-faz-system
-- **Closes:** #75
+- **What:** Adds `parse_yarn_lock` in [`yarn.rs`](src/lockfile/yarn.rs) and
+  wires it into `parse_file` for `yarn.lock`. Reads each entry header
+  (`"name@^1.0.0", name@~1.1:`, including scoped names and several
+  specifiers per entry) and its `version "x.y.z"` field; each
+  `(name, version)` pair is returned once. `direct` and `dev` are `false`
+  because the format doesn't record them.
+- **Tests:** Unit tests over the new `tests/fixtures/yarn.lock` fixture
+  (scoped, multi-specifier and exact entries). Not run in this change.
+- **By:** soma-enyi
+- **Closes:** #62
 - **Status:** In review.
 
-### cli — `depradar` binary with clap subcommands
+### scanner — pnpm-lock.yaml parser (v6 and v9)
 
-- **What:** Adds [`src/bin/depradar.rs`](src/bin/depradar.rs), built on
-  `clap` derive, with two subcommands:
-  - `depradar name <pkg>` scores one package name. This is the old
-    `scan <pkg>` behaviour, and the output is identical.
-  - `depradar scan <path> [--offline]` scans a lockfile, or every lockfile
-    under a directory via `pipeline::scan_dir`. It honours a
-    `.depradarignore` next to the lockfile (or at the directory root), and
-    `--offline` skips the OSV lookup.
+- **What:** Adds `parse_pnpm_lock` in [`pnpm.rs`](src/lockfile/pnpm.rs),
+  wired into `parse_file` for `pnpm-lock.yaml`, and the `serde_yaml`
+  dependency (plus a `ParseError::Yaml` variant). Reads the `packages:`
+  section for both `/name@version` (v6) and `name@version` (v9) keys,
+  including scoped names; v6 peer-dependency suffixes such as
+  `(react@18.2.0)` are dropped. `dev` follows the v6 `dev:` field and is
+  `false` for v9, which doesn't record it; `direct` is always `false`.
+- **Tests:** Unit tests over new `pnpm-lock-v6.yaml` and
+  `pnpm-lock-v9.yaml` fixtures. Not run in this change; `Cargo.lock` is not
+  yet updated for `serde_yaml`.
+- **By:** soma-enyi
+- **Closes:** #63
+- **Status:** In review.
 
-  Exit codes: 0 clean, 1 findings, 2 usage or scan error. `--help` ends
-  with usage examples and the exit codes. The old `scan` binary still works
-  but prints a deprecation notice to stderr.
-- **Tests:** `tests/cli.rs` (`assert_cmd`) checks that `depradar name
-  expresss` prints exactly what `scan expresss` does (and that `scan` warns
-  on stderr), snapshots `depradar --help` against
-  `tests/snapshots/depradar-help.txt`, and covers a file scan with findings
-  (exit 1) and a missing subcommand (exit 2).
-- **By:** Able-faz-system
-- **Closes:** #76
-- **Status:** In review. Verified against the same pre-merge tree as #74,
-  because `main` doesn't currently compile.
+### scanner — requirements.txt parser
 
-### cli — `--format json` output
+- **What:** Adds `parse_requirements` and
+  `parse_requirements_with_warnings` in [`pypi.rs`](src/lockfile/pypi.rs),
+  wired into `parse_file` for `requirements*.txt`. `name==version` (and
+  `===`) pins are recorded; other specifiers (`>=`, `~=`, `==1.*`) and bare
+  names get `version: None`. Comments, blank lines, `--hash` options
+  (including `\` continuations), extras and environment markers are
+  ignored. `-r other.txt` includes are not followed and come back as
+  warnings from `parse_requirements_with_warnings`; other option lines
+  (`-e`, `--index-url`, ...) are skipped silently. All entries are
+  `direct: true`.
+- **Tests:** Unit tests for each line type. Not run in this change.
+- **By:** soma-enyi
+- **Closes:** #64
+- **Status:** In review.
 
-- **What:** Adds a global `--format text|json` (`-f`, default `text`) to
-  `depradar`. In JSON mode, stdout holds exactly one pretty-printed JSON
-  document, and errors still go to stderr.
-  - `name` emits `{candidate, likely_typosquat, confidence, distance_match,
-    homoglyph_match, digit_swap_match}`.
-  - `scan` emits `{root, lockfiles: [...], errors: [...]}` whether given a
-    file or a directory. Each lockfile has `path`, `ecosystem` (OSV
-    spelling: `npm`, `PyPI`, `crates.io`), `summary`, `findings` (with
-    `kind: "typosquat" | "vulnerability"`), `suppressed` and `warnings`.
-  - A failed scan prints `{"error": "..."}` and exits 2, so stdout always
-    parses.
+### scanner — poetry.lock parser
 
-  Exit codes are the same as in text mode.
-- **Tests:** `tests/cli.rs` parses all of stdout as a single JSON document
-  for `name`, a directory scan (findings grouped by lockfile) and a failed
-  scan. The `--help` snapshot is updated.
-- **By:** Able-faz-system
-- **Closes:** #77
-- **Status:** In review. Verified against the same pre-merge tree as #74.
+- **What:** Adds `parse_poetry_lock` in [`pypi.rs`](src/lockfile/pypi.rs),
+  wired into `parse_file` for `poetry.lock`. Reads every `[[package]]`
+  entry (`name`, `version`, `category`/`groups`) with the `toml` crate and
+  applies PEP 503 name normalization (lowercase, runs of `-`, `_`, `.`
+  collapsed to `-`). `dev` is `true` for `category = "dev"` or for a
+  `groups` list without `main`; `direct` is always `false`.
+- **Tests:** Unit tests over the new `tests/fixtures/poetry.lock` fixture
+  (old `category` and new `groups` styles, name normalization). Not run in
+  this change.
+- **By:** soma-enyi
+- **Closes:** #65
+- **Status:** In review.
