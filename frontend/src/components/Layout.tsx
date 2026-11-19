@@ -24,6 +24,9 @@ export function Layout() {
             DepRadar
           </Link>
           <nav className="topbar-meta">
+            <Link to="/leaderboard" className="btn btn-ghost">
+              {t("nav.leaderboard")}
+            </Link>
             <Link to="/about" className="btn btn-ghost">
               {t("nav.about")}
             </Link>
@@ -46,7 +49,7 @@ export function Layout() {
       </main>
       <footer className="footer">
         <span>
-          <Trans i18nKey="footer.readOnly" components={[<code />]} />
+          <Trans i18nKey="footer.readOnly" components={[<code key="code" />]} />
         </span>
         <span className="muted">{t("footer.built")}</span>
       </footer>
