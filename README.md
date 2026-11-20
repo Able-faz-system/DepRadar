@@ -275,6 +275,14 @@ find, and no public record proving they found it first. DepRadar is built
 to close that gap: pay the bounty on-chain, the moment the claim is
 verified, with the full trail auditable by anyone.
 
+## Documentation
+
+- **[Architecture](docs/architecture.md)** — how components fit together, sequence diagrams, module responsibilities
+- **[Threat Model](docs/threat-model.md)** — security properties, trust assumptions, known attacks and mitigations
+- **[Tutorial](docs/tutorial.md)** — report your first typosquat from scan to payout
+- **[FAQ](docs/FAQ.md)** — common questions about bounties, findings, and deployment
+- **[API Documentation](https://depradarorg.github.io/DepRadar/api/)** — Rust API docs for the scanner toolkit
+
 ## Status & Roadmap
 
 ### Done
