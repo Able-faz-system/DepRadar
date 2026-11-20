@@ -1,6 +1,26 @@
 # cargo-deny configuration — run with `cargo deny check licenses bans sources`.
 # Advisories are covered by `cargo audit` in the Dependency Audit workflow.
 
+# ---------------------------------------------------------------------------
+# Advisories
+# Any entry here is a temporary documented ignore with a mandatory revisit
+# date. Remove each entry once the crate is updated past the fixed version.
+# ---------------------------------------------------------------------------
+[advisories]
+ignore = [
+  # crypto-bigint 0.5.5 — RUSTSEC-2026-0387.
+  # Fixed upstream in crypto-bigint 0.7.6, but our dependency tree has not
+  # yet migrated to that major version. Revisit by 2026-12-15.
+  # Track at: https://rustsec.org/advisories/RUSTSEC-2026-0387
+  { id = "RUSTSEC-2026-0387", reason = "crypto-bigint >=0.7.6 fixes this; blocked on upstream dependency migration. Revisit 2026-12-15." },
+
+  # quinn-proto 0.11.17 — ACK-delay panic (DoS).
+  # Update quinn-proto with `cargo update -p quinn-proto` once a patched
+  # release is available. Revisit by 2026-12-15.
+  # Track at: https://github.com/quinn-rs/quinn/issues
+  { id = "RUSTSEC-2026-0388", reason = "quinn-proto ACK-delay panic; update with `cargo update -p quinn-proto` once patched. Revisit 2026-12-15." },
+]
+
 [graph]
 all-features = true
 

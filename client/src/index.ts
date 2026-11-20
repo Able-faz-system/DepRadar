@@ -17,6 +17,7 @@
  */
 import { pathToFileURL } from "node:url";
 import { rpc } from "@stellar/stellar-sdk";
+import { parseBounty, parseClaim } from "@deprader/contract-types";
 
 export const DEFAULT_CONTRACT_ID = "CCPRQANY467KKE4ROKCNW6TH3LY3EPVFRXIXJ5V4VCYHLJKWZPOZYQJQ";
 export const DEFAULT_RPC_URL = "https://soroban-testnet.stellar.org";
@@ -95,17 +96,17 @@ async function main() {
 
   const health = await server.getHealth();
   const { result: bountyCount } = await server.queryContract(contractId, "bounty_count", {});
-  const { result: bounty } = await server.queryContract(contractId, "get_bounty", { bounty_id: bountyId });
+  const { result: rawBounty } = await server.queryContract(contractId, "get_bounty", { bounty_id: bountyId });
 
   const claims: unknown[] = [];
-  if (bounty !== null) {
-    const claimCount = Number((bounty as { claim_count: number }).claim_count);
-    for (let claimId = 0; claimId < claimCount; claimId += 1) {
-      const { result: claim } = await server.queryContract(contractId, "get_claim", {
+  if (rawBounty !== null) {
+    const bounty = parseBounty(rawBounty);
+    for (let claimId = 0; claimId < bounty.claimCount; claimId += 1) {
+      const { result: rawClaim } = await server.queryContract(contractId, "get_claim", {
         bounty_id: bountyId,
         claim_id: claimId,
       });
-      claims.push(claim);
+      claims.push(rawClaim === null ? null : parseClaim(rawClaim));
     }
   }
 
@@ -115,7 +116,7 @@ async function main() {
     rpcUrl,
     health: { status: health.status, latestLedger: health.latestLedger },
     bountyCount,
-    bounty,
+    bounty: rawBounty === null ? null : parseBounty(rawBounty),
     claims,
   });
   for (const line of lines) {

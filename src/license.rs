@@ -10,7 +10,8 @@ use std::fmt;
 
 use serde_json::Value;
 
-use crate::finding::{Finding, FindingKind, Severity};
+use crate::cve::severity::Severity;
+use crate::model::{Finding, FindingKind};
 
 /// Default set of common permissive licenses that are considered acceptable.
 pub const DEFAULT_ALLOWED_LICENSES: &[&str] = &[
@@ -82,11 +83,15 @@ impl LicensePolicy {
             return None;
         }
         Some(Finding {
-            kind: FindingKind::License,
-            severity: Severity::Low,
-            message: format!(
-                "Dependency `{package}` uses license `{license}` which is not in the allowlist"
-            ),
+            package: package.to_string(),
+            version: None,
+            ecosystem: None,
+            direct: false,
+            path: Vec::new(),
+            kind: FindingKind::License {
+                license: license.to_string(),
+                allowed: false,
+            },
         })
     }
 }
@@ -296,10 +301,14 @@ mod tests {
     fn check_returns_low_severity_finding_for_disallowed_license() {
         let policy = LicensePolicy::default();
         let finding = policy.check("foo", Some("GPL-3.0")).expect("finding");
-        assert_eq!(finding.kind, FindingKind::License);
-        assert_eq!(finding.severity, Severity::Low);
-        assert!(finding.message.contains("foo"));
-        assert!(finding.message.contains("GPL-3.0"));
+        assert_eq!(finding.package, "foo");
+        match &finding.kind {
+            FindingKind::License { license, allowed } => {
+                assert_eq!(license, "GPL-3.0");
+                assert!(!allowed);
+            }
+            other => panic!("unexpected finding kind: {other:?}"),
+        }
     }
 
     #[test]
@@ -326,8 +335,13 @@ mod tests {
         let finding = check_dependency(&source, &policy, "copyleft-pkg")
             .unwrap()
             .expect("finding");
-        assert_eq!(finding.kind, FindingKind::License);
-        assert_eq!(finding.severity, Severity::Low);
+        match &finding.kind {
+            FindingKind::License { license, allowed } => {
+                assert_eq!(license, "GPL-3.0");
+                assert!(!allowed);
+            }
+            other => panic!("unexpected finding kind: {other:?}"),
+        }
     }
 
     #[test]
@@ -364,8 +378,13 @@ mod tests {
         let finding = check_dependency(&source, &policy, "copyleft-pkg")
             .unwrap()
             .expect("finding");
-        assert_eq!(finding.kind, FindingKind::License);
-        assert_eq!(finding.severity, Severity::Low);
+        match &finding.kind {
+            FindingKind::License { license, allowed } => {
+                assert_eq!(license, "GPL-3.0");
+                assert!(!allowed);
+            }
+            other => panic!("unexpected finding kind: {other:?}"),
+        }
     }
 
     #[test]
@@ -398,7 +417,7 @@ mod tests {
         let finding = check_dependency(&source, &policy, "copyleft-pkg")
             .unwrap()
             .expect("finding");
-        assert_eq!(finding.kind, FindingKind::License);
+        assert!(matches!(finding.kind, FindingKind::License { .. }));
     }
 
     #[test]
@@ -430,8 +449,13 @@ mod tests {
         let finding = check_dependency(&source, &policy, "copyleft-crate")
             .unwrap()
             .expect("finding");
-        assert_eq!(finding.kind, FindingKind::License);
-        assert_eq!(finding.severity, Severity::Low);
+        match &finding.kind {
+            FindingKind::License { license, allowed } => {
+                assert_eq!(license, "GPL-3.0");
+                assert!(!allowed);
+            }
+            other => panic!("unexpected finding kind: {other:?}"),
+        }
     }
 
     #[test]
