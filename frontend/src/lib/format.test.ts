@@ -4,6 +4,7 @@ import {
   formatAmount,
   formatIssueRef,
   parseIssueRef,
+  refToUrl,
   relativeTime,
   shortAddress,
   tokenSymbol,
@@ -91,5 +92,30 @@ describe("issue refs", () => {
     ]) {
       expect(parseIssueRef(ref)).toBeNull();
     }
+  });
+});
+
+describe("refToUrl", () => {
+  it("returns https URLs as-is", () => {
+    expect(refToUrl("https://example.com/proof")).toBe("https://example.com/proof");
+    expect(refToUrl("https://github.com/DepRadarOrg/DepRadar/issues/12")).toBe(
+      "https://github.com/DepRadarOrg/DepRadar/issues/12",
+    );
+  });
+  it("converts owner/repo#N GitHub refs to issue URLs", () => {
+    expect(refToUrl("DepRadarOrg/DepRadar#12")).toBe("https://github.com/DepRadarOrg/DepRadar/issues/12");
+    expect(refToUrl("owner/repo#1")).toBe("https://github.com/owner/repo/issues/1");
+  });
+  it("leaves plain text and standard issue refs as text", () => {
+    expect(refToUrl("see the attached screenshot")).toBeNull();
+    expect(refToUrl("npm:expresss@1.0.0#typosquat:express")).toBeNull();
+    expect(refToUrl("")).toBeNull();
+  });
+  it("never turns non-https schemes into links", () => {
+    expect(refToUrl("javascript:alert(1)")).toBeNull();
+    expect(refToUrl("JavaScript:alert(1)")).toBeNull();
+    expect(refToUrl("data:text/html,<script>alert(1)</script>")).toBeNull();
+    expect(refToUrl("http://example.com/proof")).toBeNull();
+    expect(refToUrl("ftp://example.com/file")).toBeNull();
   });
 });

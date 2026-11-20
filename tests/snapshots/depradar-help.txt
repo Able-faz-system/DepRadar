@@ -5,6 +5,7 @@ Usage: depradar [OPTIONS] <COMMAND>
 Commands:
   name         Score a single package name against the popular-package dataset
   scan         Scan a lockfile, or every lockfile under a directory
+  explain      Show details for a single advisory (summary, severity, affected ranges, fixed version and references)
   watch        Watch a package registry and emit typosquat findings as JSON lines
   completions  Generate shell completion scripts to stdout
   help         Print this message or the help of the given subcommand(s)
@@ -21,6 +22,7 @@ Examples:
   depradar scan package-lock.json        Scan a lockfile for typosquats and known CVEs
   depradar scan .                        Scan every lockfile in a directory or monorepo
   depradar scan . --offline              Typosquat checks only, no OSV lookup
+  depradar explain GHSA-xxxx-xxxx-xxxx   Show details for one advisory
   depradar --format json scan . | jq     Machine-readable output for CI
   depradar watch --registry npm          Watch the npm registry and score new packages
 

@@ -75,6 +75,18 @@ export function formatIssueRef(ref: IssueRef): string {
   return `${ref.ecosystem}:${ref.package}${version}#${ref.kind}${detail}`;
 }
 
+/**
+ * Turns a `proof_ref` / `issue_ref` into a link target, or null when it should
+ * stay plain text. Only `https://` URLs and `owner/repo#N` GitHub refs qualify;
+ * other schemes (e.g. `javascript:`, `data:`, `http:`) are rejected.
+ */
+export function refToUrl(ref: string): string | null {
+  const trimmed = ref.trim();
+  if (trimmed.startsWith("https://")) return trimmed;
+  const m = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)#(\d+)$/.exec(trimmed);
+  return m ? `https://github.com/${m[1]}/${m[2]}/issues/${m[3]}` : null;
+}
+
 /** Parses a standard `issue_ref`, or returns null for free-form refs. */
 export function parseIssueRef(ref: string): IssueRef | null {
   const colon = ref.indexOf(":");
