@@ -402,63 +402,33 @@ const EXPLAIN_ADVISORY_JSON: &str = r#"{
   ]
 }"#;
 
-/// Starts a tiny HTTP server that answers `GET /v1/vulns/{id}` with the canned
+/// Starts a `mockito` server that answers `GET /v1/vulns/{id}` with the canned
 /// advisory for `GHSA-aaaa-bbbb-cccc` and 404 for anything else. Returns the
-/// base URL (e.g. `http://127.0.0.1:PORT`) and a handle to stop the server.
-fn start_mock_osv_server() -> (String, std::thread::JoinHandle<()>) {
-    use std::io::{BufRead, BufReader, Write};
-    use std::net::TcpListener;
-
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = listener.local_addr().unwrap();
-    let base_url = format!("http://{addr}");
-
-    let handle = std::thread::spawn(move || {
-        for stream in listener.incoming() {
-            let mut stream = match stream {
-                Ok(stream) => stream,
-                Err(_) => break,
-            };
-            let mut reader = BufReader::new(stream.try_clone().unwrap());
-            let mut request_line = String::new();
-            if reader.read_line(&mut request_line).is_err() {
-                continue;
-            }
-            // Drain the remaining request headers.
-            loop {
-                let mut line = String::new();
-                match reader.read_line(&mut line) {
-                    Ok(0) => break,
-                    Ok(_) if line == "\r\n" || line == "\n" => break,
-                    Ok(_) => {}
-                    Err(_) => break,
-                }
-            }
-
-            let path = request_line.split_whitespace().nth(1).unwrap_or("");
-            let (status, body) = if path == "/v1/vulns/GHSA-aaaa-bbbb-cccc" {
-                ("200 OK", EXPLAIN_ADVISORY_JSON)
-            } else {
-                ("404 Not Found", r#"{"code":5,"message":"not found"}"#)
-            };
-            let response = format!(
-                "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
-            );
-            let _ = stream.write_all(response.as_bytes());
-            let _ = stream.flush();
-        }
-    });
-
-    (base_url, handle)
+/// running server; the caller points the binary at it via
+/// `DEPRADAR_OSV_BASE_URL`.
+fn start_mock_osv_server() -> mockito::ServerGuard {
+    let mut server = mockito::Server::new();
+    server
+        .mock("GET", "/v1/vulns/GHSA-aaaa-bbbb-cccc")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(EXPLAIN_ADVISORY_JSON)
+        .create();
+    server
+        .mock("GET", mockito::Matcher::Regex(r"^/v1/vulns/.*$".to_string()))
+        .with_status(404)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"code":5,"message":"not found"}"#)
+        .create();
+    server
 }
 
 #[test]
 fn explain_text_prints_advisory_details() {
-    let (base_url, _handle) = start_mock_osv_server();
+    let server = start_mock_osv_server();
 
     let output = depradar()
-        .env("DEPRADAR_OSV_BASE_URL", &base_url)
+        .env("DEPRADAR_OSV_BASE_URL", server.url())
         .args(["explain", "GHSA-aaaa-bbbb-cccc"])
         .output()
         .unwrap();
@@ -494,10 +464,10 @@ fn explain_text_prints_advisory_details() {
 
 #[test]
 fn explain_json_is_one_document() {
-    let (base_url, _handle) = start_mock_osv_server();
+    let server = start_mock_osv_server();
 
     let output = depradar()
-        .env("DEPRADAR_OSV_BASE_URL", &base_url)
+        .env("DEPRADAR_OSV_BASE_URL", server.url())
         .args(["--format", "json", "explain", "GHSA-aaaa-bbbb-cccc"])
         .output()
         .unwrap();
@@ -510,14 +480,23 @@ fn explain_json_is_one_document() {
     let json = stdout_json(&output);
     assert_eq!(json["id"], "GHSA-aaaa-bbbb-cccc");
     assert_eq!(json["summary"], "Prototype pollution in example-package");
+    assert!(
+        json["severity"].is_string() || json["severity"].is_array(),
+        "severity missing from JSON: {json}"
+    );
+    let rendered = json.to_string();
+    assert!(
+        rendered.contains("1.2.3"),
+        "fixed version missing from JSON: {json}"
+    );
 }
 
 #[test]
 fn explain_unknown_advisory_exits_with_code_2() {
-    let (base_url, _handle) = start_mock_osv_server();
+    let server = start_mock_osv_server();
 
     let output = depradar()
-        .env("DEPRADAR_OSV_BASE_URL", &base_url)
+        .env("DEPRADAR_OSV_BASE_URL", server.url())
         .args(["explain", "GHSA-0000-0000-0000"])
         .output()
         .unwrap();
