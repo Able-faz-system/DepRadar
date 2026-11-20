@@ -875,3 +875,60 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** MamaLove360
 - **Closes:** #165
 - **Status:** In review.
+
+### Frontend — render `proof_ref` and `issue_ref` as links — #140
+
+- **What:** Adds `refToUrl(ref)` to
+  [`frontend/src/lib/format.ts`](frontend/src/lib/format.ts): `https://`
+  URLs are returned as-is, `owner/repo#N` refs become
+  `https://github.com/owner/repo/issues/N`, and anything else (including
+  `javascript:` and other non-`https` schemes) returns `null` so it stays
+  plain text. The bounty detail page and the bounty list use it to render
+  refs as links that open in a new tab with `rel="noreferrer"`.
+- **Verified:** Unit tests cover `https://` URLs, GitHub refs, and
+  `javascript:` URLs (which must not become links). `npm run lint`,
+  `npm run typecheck`, `npm test` and `npm run build` pass in `frontend/`.
+- **By:** ALLEN-AYODEJI
+- **Closes:** #140
+- **Status:** In review.
+
+### Frontend — Playwright smoke test against testnet — #141
+
+- **What:** Adds Playwright under [`frontend/e2e/`](frontend/e2e/) with one
+  smoke test: it opens `/`, waits for at least one bounty row, opens it, and
+  checks that its claims render. A separate, non-blocking `e2e` job in
+  [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs it against the
+  live testnet contract (`continue-on-error: true`), since testnet can be
+  flaky.
+- **Verified:** The e2e job passes on the PR; `npm run lint`,
+  `npm run typecheck`, `npm test` and `npm run build` pass in `frontend/`.
+- **By:** ALLEN-AYODEJI
+- **Closes:** #141
+- **Status:** In review.
+
+### Frontend — scan-report viewer — #142
+
+- **What:** Adds `/report`, a page where a `depradar --format json` file can
+  be dropped or uploaded and rendered entirely client-side: the summary plus
+  findings grouped by severity. The JSON shape is validated and a clear
+  error is shown for wrong files. Implemented in
+  [`frontend/src/pages/Report.tsx`](frontend/src/pages/Report.tsx).
+- **Verified:** Component tests cover a valid file and an invalid one.
+  `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` pass
+  in `frontend/`.
+- **By:** ALLEN-AYODEJI
+- **Closes:** #142
+- **Status:** In review.
+
+### Client — `--json` and `--all` flags — #143
+
+- **What:** [`client/src/index.ts`](client/src/index.ts) gains `--all`,
+  which prints every bounty using the contract's `bounty_count` getter, and
+  `--json`, which prints a single JSON document instead of the
+  human-readable output. [`client/README.md`](client/README.md) documents
+  both flags with output examples.
+- **Verified:** `npm run typecheck` passes in `client/`; output examples for
+  both flags are in the PR.
+- **By:** ALLEN-AYODEJI
+- **Closes:** #143
+- **Status:** In review.
