@@ -7,6 +7,10 @@ source of truth for acceptance criteria. These notes cover the "how".
 
 | Day | Issue | Doc |
 |---|---|---|
+| 3 | [#291 Whitespace-padding detector](https://github.com/DepRadarOrg/DepRadar/issues/291) | [day-03-whitespace-padding.md](day-03-whitespace-padding.md) |
+| 4 | [#292 Obfuscation over repo source](https://github.com/DepRadarOrg/DepRadar/issues/292) | [day-04-source-obfuscation.md](day-04-source-obfuscation.md) |
+| 5 | [#293 Auto-run trap detector](https://github.com/DepRadarOrg/DepRadar/issues/293) | [day-05-auto-run-traps.md](day-05-auto-run-traps.md) |
+| 6 | [#294 Lifecycle scripts in the repo's `package.json`](https://github.com/DepRadarOrg/DepRadar/issues/294) | [day-06-lifecycle-scripts.md](day-06-lifecycle-scripts.md) |
 | 7 | [#295 Disguised-file detector](https://github.com/DepRadarOrg/DepRadar/issues/295) | [day-07-disguised-files.md](day-07-disguised-files.md) |
 | 9 | [#297 Forged-merge detector](https://github.com/DepRadarOrg/DepRadar/issues/297) | [day-09-forged-merge.md](day-09-forged-merge.md) |
 | 10 | [#298 Evil-merge detector](https://github.com/DepRadarOrg/DepRadar/issues/298) | [day-10-evil-merge.md](day-10-evil-merge.md) |
@@ -39,6 +43,14 @@ Days 1–6 establish.
   detector on it. Put the helper (`init`, `commit`, `merge`, a fixed
   author and date for determinism) in one shared test-support module, so
   Days 9 and 10 reuse it.
+- **Keep the self-scan clean.** Day 1 requires `depradar repo-scan` on
+  this repo to produce an empty SARIF. Positive fixtures for Days 3–7
+  will trip their own detectors. The same goes for the existing
+  `tests/fixtures/behavioral/` packages and the committed
+  `.claude/settings.json` (see Day 5). Pick one approach in the first PR
+  that hits this: exclude `tests/fixtures/**` in the repo's own
+  `depradar.toml`, or build the positive fixtures inside the tests. Every
+  later day then follows it.
 - **Offline by default.** Any network check, such as Day 9's GitHub API
   confirmation, is optional. Its tests skip when the network is
   unavailable, the same way `src/cve/` already handles OSV.

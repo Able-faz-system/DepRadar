@@ -24,6 +24,22 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** joshfatoye0011-bit
 - **Closes:** #282
 
+### Frontend — Add missing key props in Layout.tsx — #279
+
+- **What:** Two places in `frontend/src/components/Layout.tsx` required `key`
+  props to avoid React reconciliation warnings.
+  1. The `<code>` element inside the `Trans` component's `components` array in
+     the footer — React-i18next indexes the array and React requires a `key`
+     on each element. Added `key="code"` and an explanatory comment so the
+     requirement is not silently dropped in future edits.
+  2. The nav links in the topbar were static repeated JSX without keys.
+     Refactored to a `NAV_LINKS` constant array mapped with `key` props on
+     each rendered `<Link>` / `<a>`, which also makes the nav easier to extend.
+- **Verified:** No "missing key" console warnings; `npm run typecheck` passes;
+  visual output is unchanged.
+- **By:** joshfatoye0011-bit
+- **Closes:** #279
+
 ### CLI — Regenerate --help snapshot to include explain subcommand — #281
 
 - **What:** `tests/snapshots/depradar-help.txt` was missing the `explain`
@@ -1079,4 +1095,56 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
   `cargo test --workspace` pass.
 - **Closes:** #276
 - **Status:** In review.
+
+### Read client — unit tests for argument parsing and output — #144
+
+- **What:** Adds Vitest to `client/` and extracts the CLI's argument
+  parsing and output formatting out of `client/src/index.ts` into testable
+  functions. `parseArgs` is covered for the defaults (`--bounty-id` and
+  `--claim-id` both `1`, plus the default contract and RPC URL) and for
+  invalid IDs (non-numeric and negative values are rejected). The formatter
+  is covered for the found and not-found paths of both `get_bounty` and
+  `get_claim`. `npm test` runs the suite and is wired into the existing
+  `client` CI job.
+- **Verified:** `npm test` and `npm run typecheck` pass in `client/`; the
+  workflow runs green on the PR.
+- **By:** ALLEN-AYODEJI
+- **Closes:** #144
+- **Status:** In review.
+
+### Drips — fund the bounty pool from a Drips stream — #149
+
+- **What:** Prototypes a pool address in `contracts/` that receives Drips
+  funding and lets the admin open bounties from the pool balance, with the
+  limitations and next steps written up in
+  [`docs/drips-integration.md`](docs/drips-integration.md).
+- **Verified:** `cargo fmt`, `cargo clippy -- -D warnings` and
+  `cargo test --workspace` pass; contract test snapshots are updated and the
+  wasm build succeeds. A testnet demo with transaction links is recorded in
+  the PR, and every command and link in the new docs was checked.
+- **By:** ALLEN-AYODEJI
+- **Closes:** #149
+- **Status:** In review.
+
+### CI — CodeQL analysis for TypeScript — #153
+
+- **What:** Adds [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml)
+  running CodeQL's `javascript-typescript` analysis over `client/` and
+  `frontend/` on push, on pull requests and on a weekly schedule.
+- **Verified:** the workflow runs green on the PR.
+- **By:** ALLEN-AYODEJI
+- **Closes:** #153
+- **Status:** In review.
+
+### Dev container for one-click setup — #154
+
+- **What:** Adds [`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json)
+  with Rust stable plus the `wasm32v1-none` target, Node 22 and the Stellar
+  CLI. Its `postCreateCommand` runs `cargo fetch` and `npm ci` in
+  `frontend/` and `client/`, and `CONTRIBUTING.md` documents the setup.
+- **Verified:** opening the repo in GitHub Codespaces lets you run
+  `cargo test` and `npm test`; every command and link in the new docs was
+  checked.
+- **By:** ALLEN-AYODEJI
+- **Closes:** #154
 - **Status:** In review.
