@@ -26,6 +26,22 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** joshfatoye0011-bit
 - **Closes:** #279
 
+### Security — Document and suppress cargo audit advisory failures — #280
+
+- **What:** The weekly Dependency Audit workflow was failing on two open
+  advisories: `RUSTSEC-2026-0387` (`crypto-bigint 0.5.5`, fixed in `0.7.6`)
+  and a `quinn-proto 0.11.17` ACK-delay panic advisory. Because neither crate
+  can be updated in one step without migrating the whole dependency tree,
+  both are added as dated, documented `[advisories.ignore]` entries in
+  `deny.toml` with mandatory revisit dates of **2026-12-15** and links to the
+  upstream tracking issues. The entries explain why the fix is blocked and
+  what the resolution step is (`cargo update -p <crate>` once a patched
+  version is available).
+- **Verified:** `deny.toml` syntax is valid; entries carry explicit reasons
+  and revisit dates per the project's audit policy.
+- **By:** joshfatoye0011-bit
+- **Closes:** #280
+
 ### Docs — Architecture guide with sequence diagrams — #155
 
 - **What:** Adds [`docs/architecture.md`](docs/architecture.md) with Mermaid
@@ -882,6 +898,54 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Closes:** #164
 - **Status:** In review.
 
+### Shared contract types between `client/` and `frontend/` — #145
+
+- **What:** Adds `packages/contract-types/`, a small TypeScript package
+  exporting the `Bounty` and `Claim` types plus `parseBounty` and
+  `parseClaim`, so the two apps decode the router's structs with one
+  implementation instead of two copies that can drift. Both `client/` and
+  `frontend/` consume it through npm workspaces (a relative import in the
+  client's tsconfig paths), and their local parsing code is deleted.
+- **Verified:** `npm run typecheck` passes in `client/`; `npm run lint`,
+  `npm run typecheck`, `npm test` and `npm run build` pass in `frontend/`.
+  The parsing tests moved with the code into the shared package.
+- **Closes:** #145
+
+### Docs — Drips integration design — #146
+
+- **What:** Adds [`docs/drips-integration.md`](docs/drips-integration.md):
+  what Drips offers on Stellar, three candidate designs (the claimant
+  receives directly and then splits; the router sends a share to a
+  project's Drips list; Drips streams fund the bounty pool), their
+  trade-offs, a recommendation, and the contract changes each design would
+  need.
+- **Verified:** every command and link in the new doc was checked against
+  the repo and the Drips documentation.
+- **Closes:** #146
+
+### GitHub ↔ Stellar identity verification for claimants — #147
+
+- **What:** Adds a verification flow in which a claimant posts a message
+  signed with their Stellar key in a gist or PR comment, and a verifier
+  checks the signature against the claimed address. Verified links are
+  stored off-chain as JSON in the repo, and the trust model is documented
+  in `docs/`.
+- **Verified:** signature-verification tests pass; `cargo fmt`,
+  `cargo clippy -- -D warnings` and `cargo test --workspace` pass; all
+  commands and links in the new docs were checked.
+- **Closes:** #147
+
+### Contract — Drips share on release — #148
+
+- **What:** Following the design doc, `create_bounty` takes an optional
+  `drips_share_bps` and destination address. On `release`, that share of
+  the bounty is paid to the destination and the rest to the claimant; the
+  share is capped and emitted in the `released` event.
+- **Verified:** tests cover a 0% share, a typical share and the cap;
+  `cargo fmt`, `cargo clippy -- -D warnings` and `cargo test --workspace`
+  pass; contract test snapshots are updated and the wasm build succeeds.
+- **Closes:** #148
+
 ### CI — scan DepRadar's own lockfiles — #165
 
 - **What:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) gains a
@@ -890,4 +954,57 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
   `client/package-lock.json` and `frontend/package-lock.json`.
 - **By:** MamaLove360
 - **Closes:** #165
+- **Status:** In review.
+
+### Fix — `src/license.rs` imports a non-existent `crate::finding` module — #273
+
+- **What:** `src/license.rs` imported `Finding`, `FindingKind` and
+  `Severity` from `crate::finding`, which doesn't exist. The imports now
+  point at the real modules — `Finding` / `FindingKind` from
+  [`src/model.rs`](src/model.rs) and `Severity` from
+  [`src/cve/severity.rs`](src/cve/severity.rs) — and the license checks
+  build findings with the existing types.
+- **Verified:** `cargo fmt`, `cargo clippy -- -D warnings` and
+  `cargo test --workspace` pass, including the `license` module tests.
+- **Closes:** #273
+- **Status:** In review.
+
+### Fix — `src/registry/crates.rs` imports `PoliteClient` from the wrong module — #274
+
+- **What:** `src/registry/crates.rs` imported `PoliteClient` from
+  `crate::registry`, but it is defined in [`src/net.rs`](src/net.rs). The
+  import is now `crate::net::PoliteClient`, and the follow-on type errors in
+  the file are fixed.
+- **Verified:** `cargo fmt`, `cargo clippy -- -D warnings` and
+  `cargo test --workspace` pass, including the `registry::crates` tests.
+- **Closes:** #274
+- **Status:** In review.
+
+### Fix — add the missing `flate2` dependency — #275
+
+- **What:** [`src/behavioral/tarball.rs`](src/behavioral/tarball.rs) uses
+  `flate2::read::GzDecoder`, but `flate2` wasn't in `Cargo.toml`, so the
+  build failed. `flate2` is now a `[dependencies]` entry and `Cargo.lock`
+  is updated.
+- **Verified:** `cargo fmt`, `cargo clippy -- -D warnings` and
+  `cargo test --workspace` pass, including the `behavioral::tarball` tests;
+  `cargo deny check licenses bans sources` still passes.
+- **Closes:** #275
+- **Status:** In review.
+
+### Fix — `depradar explain` uses a non-existent `deprader::osv` module — #276
+
+- **What:** `run_explain`, `explain_text` and `explain_json` in
+  [`src/bin/depradar.rs`](src/bin/depradar.rs) referenced
+  `deprader::osv::Vuln`, which doesn't exist. They now use the real types
+  from [`src/cve/osv_client.rs`](src/cve/osv_client.rs) (re-exported via
+  [`src/cve/mod.rs`](src/cve/mod.rs)) — `OsvVulnerability` and its nested
+  structs — so `depradar explain GHSA-…` prints the summary, severity and
+  fixed version in both text and JSON.
+- **Tests:** An `assert_cmd` integration test in [`tests/cli.rs`](tests/cli.rs)
+  runs `depradar explain` against a mock OSV server and checks the printed
+  summary, severity and fixed version in text and JSON output.
+- **Verified:** `cargo fmt`, `cargo clippy -- -D warnings` and
+  `cargo test --workspace` pass.
+- **Closes:** #276
 - **Status:** In review.

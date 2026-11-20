@@ -16,6 +16,7 @@
  * to the default testnet deployment below.
  */
 import { rpc } from "@stellar/stellar-sdk";
+import { parseBounty, parseClaim } from "@deprader/contract-types";
 
 const DEFAULT_CONTRACT_ID = "CCPRQANY467KKE4ROKCNW6TH3LY3EPVFRXIXJ5V4VCYHLJKWZPOZYQJQ";
 const DEFAULT_RPC_URL = "https://soroban-testnet.stellar.org";
@@ -52,22 +53,27 @@ async function main() {
   const { result: count } = await server.queryContract(contractId, "bounty_count", {});
   console.log(`Bounties created: ${count}\n`);
 
-  const { result: bounty } = await server.queryContract(contractId, "get_bounty", { bounty_id: bountyId });
+  const { result: rawBounty } = await server.queryContract(contractId, "get_bounty", { bounty_id: bountyId });
   console.log(`get_bounty(${bountyId}) =>`);
-  if (bounty === null) {
+  if (rawBounty === null) {
     console.log("  (no bounty with this ID)");
     return;
   }
+  const bounty = parseBounty(rawBounty);
   console.log(JSON.stringify(bounty, bigIntReplacer, 2));
 
-  const claimCount = Number((bounty as { claim_count: number }).claim_count);
-  for (let claimId = 0; claimId < claimCount; claimId += 1) {
-    const { result: claim } = await server.queryContract(contractId, "get_claim", {
+  for (let claimId = 0; claimId < bounty.claimCount; claimId += 1) {
+    const { result: rawClaim } = await server.queryContract(contractId, "get_claim", {
       bounty_id: bountyId,
       claim_id: claimId,
     });
     console.log(`\nget_claim(${bountyId}, ${claimId}) =>`);
-    console.log(claim === null ? "  (no claim with this ID)" : JSON.stringify(claim, bigIntReplacer, 2));
+    if (rawClaim === null) {
+      console.log("  (no claim with this ID)");
+      continue;
+    }
+    const claim = parseClaim(rawClaim);
+    console.log(JSON.stringify(claim, bigIntReplacer, 2));
   }
 }
 

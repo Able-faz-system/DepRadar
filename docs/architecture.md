@@ -45,6 +45,10 @@ A command-line interface for scanning lockfiles (`depradar scan <lockfile>`), ex
 
 A minimal Node/TypeScript wrapper around the contract's read methods, used for scripting and testing. It calls `get_bounty` and `get_claim` via `@stellar/stellar-sdk` and prints the result.
 
+### Identity Verifier (`src/identity/`)
+
+Links GitHub identities to Stellar addresses so that a claim's `proof_ref` (a GitHub PR) can be tied to the address that receives the payout. The claimant signs their Stellar address with their Stellar key and posts the signature in a gist or PR comment; the verifier (`src/identity/`) checks the signature against the claimed address. Verified links are stored off-chain as JSON. See [identity-verification.md](identity-verification.md) for the trust model and the exact verification steps.
+
 ## Sequence Diagrams
 
 ### Scan → Finding
@@ -80,6 +84,30 @@ sequenceDiagram
 ```
 
 The CLI parses options, calls the pipeline, and formats the result. The pipeline parses the lockfile into dependencies, runs the typosquat and CVE checks in parallel, rates severity, and returns a report. The report is rendered as text, JSON, or SARIF depending on `--format`.
+
+### GitHub → Stellar Identity Verification
+
+Before a claim is reviewed, the claimant's GitHub identity is linked to a Stellar address:
+
+```mermaid
+sequenceDiagram
+    participant Claimant
+    participant GitHub as GitHub (gist / PR comment)
+    participant Verifier as identity verifier
+    participant Store as links JSON
+
+    Claimant->>Claimant: sign Stellar address with Stellar key
+    Claimant->>GitHub: post signed message
+    Verifier->>GitHub: fetch gist / PR comment
+    Verifier->>Verifier: verify signature against claimed address
+    alt signature valid
+        Verifier->>Store: record { github, address, proof_url }
+    else invalid or malformed
+        Verifier-->>Claimant: reject link
+    end
+```
+
+The verifier only trusts a link once the signature checks out against the claimed Stellar address. The stored JSON is the off-chain source of truth for which GitHub account controls which address.
 
 ### Create Bounty → Claim → Review → Release
 
@@ -220,6 +248,8 @@ Finding (severity-rated)
 Bounty Router (create_bounty locks funds)
     ↓
 Researcher (submit_claim with proof_ref)
+    ↓
+Identity verifier (GitHub ↔ Stellar link, stored off-chain)
     ↓
 Admin (reject_claim or release)
     ↓

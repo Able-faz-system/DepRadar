@@ -1,6 +1,6 @@
 use super::{
     BountyStatus, ClaimStatus, DepRaderRouter, DepRaderRouterClient, Error, MAX_BOUNTY_DURATION_SECS,
-    MAX_CLAIMS_PER_BOUNTY, MAX_REF_LEN, REVIEW_WINDOW_SECS,
+    MAX_CLAIMS_PER_BOUNTY, MAX_DRIPS_SHARE_BPS, MAX_REF_LEN, REVIEW_WINDOW_SECS,
 };
 use soroban_sdk::{
     symbol_short,
@@ -99,6 +99,23 @@ impl Setup<'_> {
 
     fn add_reviewer(&self, reviewer: &Address) {
         self.client.add_reviewer(&self.admin, reviewer);
+    }
+
+    /// Create a bounty that routes `drips_share_bps` of the released amount
+    /// to `drips_dest`.
+    fn create_with_drips(&self, drips_share_bps: u32, drips_dest: &Address) -> u64 {
+        self.client.create_bounty_with_drips(
+            &self.creator,
+            &self.s("org/repo#123"),
+            &AMOUNT,
+            &self.token.address,
+            &DEADLINE,
+            &Some(symbol_short!("rust")),
+            &Some(self.s("serde")),
+            &Some(3),
+            &drips_share_bps,
+            &Some(drips_dest.clone()),
+        )
     }
 
     fn claim(&self, bounty_id: u64) -> (Address, u32) {
@@ -913,6 +930,108 @@ fn test_release_split_rejects_non_pending_claim() {
         t.client.try_release_split(&t.admin, &bounty_id, &shares),
         Err(Ok(Error::ClaimNotPending))
     );
+}
+
+// --------------------------------------------------------- drips share
+
+#[test]
+fn test_release_with_zero_drips_share_pays_claimant_in_full() {
+    let t = setup();
+    let drips_dest = Address::generate(&t.env);
+    let bounty_id = t.create_with_drips(0, &drips_dest);
+    let (claimant, claim_id) = t.claim(bounty_id);
+
+    t.client.release(&t.admin, &bounty_id, &claim_id);
+    assert_eq!(t.last_event_topic(), symbol_short!("released"));
+
+    assert_eq!(t.token.balance(&claimant), AMOUNT);
+    assert_eq!(t.token.balance(&drips_dest), 0);
+    assert_eq!(t.token.balance(&t.client.address), 0);
+
+    let bounty = t.client.get_bounty(&bounty_id).unwrap();
+    assert_eq!(bounty.drips_share_bps, 0);
+    assert_eq!(bounty.drips_dest, Some(drips_dest));
+}
+
+#[test]
+fn test_release_with_typical_drips_share_splits_payout() {
+    let t = setup();
+    let drips_dest = Address::generate(&t.env);
+    // 10% to Drips, 90% to the claimant.
+    let bounty_id = t.create_with_drips(1_000, &drips_dest);
+    let (claimant, claim_id) = t.claim(bounty_id);
+
+    t.client.release(&t.admin, &bounty_id, &claim_id);
+    assert_eq!(t.last_event_topic(), symbol_short!("released"));
+
+    // AMOUNT = 400 -> 40 to Drips, 360 to the claimant.
+    assert_eq!(t.token.balance(&drips_dest), 40);
+    assert_eq!(t.token.balance(&claimant), 360);
+    assert_eq!(t.token.balance(&t.client.address), 0);
+
+    let bounty = t.client.get_bounty(&bounty_id).unwrap();
+    assert_eq!(bounty.status, BountyStatus::Released);
+    assert_eq!(bounty.drips_share_bps, 1_000);
+    assert_eq!(
+        t.client.get_claim(&bounty_id, &claim_id).unwrap().status,
+        ClaimStatus::Accepted
+    );
+}
+
+#[test]
+fn test_release_with_drips_share_rounds_down() {
+    let t = setup();
+    let drips_dest = Address::generate(&t.env);
+    // 33.33% of 400 = 133.32 -> 133 to Drips, remainder to the claimant.
+    let bounty_id = t.create_with_drips(3_333, &drips_dest);
+    let (claimant, claim_id) = t.claim(bounty_id);
+
+    t.client.release(&t.admin, &bounty_id, &claim_id);
+
+    assert_eq!(t.token.balance(&drips_dest), 133);
+    assert_eq!(t.token.balance(&claimant), 267);
+    assert_eq!(t.token.balance(&t.client.address), 0);
+}
+
+#[test]
+fn test_release_with_capped_drips_share() {
+    let t = setup();
+    let drips_dest = Address::generate(&t.env);
+    // Ask for more than the cap; the contract clamps it to MAX_DRIPS_SHARE_BPS.
+    let bounty_id = t.create_with_drips(MAX_DRIPS_SHARE_BPS + 1_000, &drips_dest);
+    let (claimant, claim_id) = t.claim(bounty_id);
+
+    t.client.release(&t.admin, &bounty_id, &claim_id);
+    assert_eq!(t.last_event_topic(), symbol_short!("released"));
+
+    let bounty = t.client.get_bounty(&bounty_id).unwrap();
+    assert_eq!(bounty.drips_share_bps, MAX_DRIPS_SHARE_BPS);
+
+    let drips_amount = AMOUNT * MAX_DRIPS_SHARE_BPS as i128 / 10_000;
+    assert_eq!(t.token.balance(&drips_dest), drips_amount);
+    assert_eq!(t.token.balance(&claimant), AMOUNT - drips_amount);
+    assert_eq!(t.token.balance(&t.client.address), 0);
+}
+
+#[test]
+fn test_create_bounty_with_drips_requires_destination() {
+    let t = setup();
+    assert_eq!(
+        t.client.try_create_bounty_with_drips(
+            &t.creator,
+            &t.s("org/repo#123"),
+            &AMOUNT,
+            &t.token.address,
+            &DEADLINE,
+            &None,
+            &None,
+            &None,
+            &1_000,
+            &None,
+        ),
+        Err(Ok(Error::InvalidDripsConfig))
+    );
+    assert_eq!(t.client.bounty_count(), 0);
 }
 
 // ------------------------------------------------------------ fund_bounty
