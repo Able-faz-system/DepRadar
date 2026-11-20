@@ -14,6 +14,10 @@
  * --contract / --rpc override the target deployment. When omitted, the
  * DEPRADAR_CONTRACT_ID / DEPRADAR_RPC_URL env vars are used, falling back
  * to the default testnet deployment below.
+ *
+ * --all fetches every bounty (using bounty_count) and its claims instead
+ * of a single bounty. --json prints a single JSON document instead of the
+ * human-readable output; combined with --all it includes every bounty.
  */
 import { pathToFileURL } from "node:url";
 import { rpc } from "@stellar/stellar-sdk";
@@ -22,21 +26,31 @@ import { parseBounty, parseClaim } from "@deprader/contract-types";
 export const DEFAULT_CONTRACT_ID = "CCPRQANY467KKE4ROKCNW6TH3LY3EPVFRXIXJ5V4VCYHLJKWZPOZYQJQ";
 export const DEFAULT_RPC_URL = "https://soroban-testnet.stellar.org";
 
+const BOOLEAN_FLAGS = new Set(["all", "json"]);
+
 export interface ParsedArgs {
   bountyId: number;
   contractId: string;
   rpcUrl: string;
+  all: boolean;
+  json: boolean;
 }
 
 export type Env = Record<string, string | undefined>;
 
 export function parseArgs(argv: string[], env: Env = process.env): ParsedArgs {
   const flags = new Map<string, string>();
+  const booleans = new Set<string>();
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg.startsWith("--")) {
-      flags.set(arg.slice(2), argv[i + 1]);
-      i += 1;
+      const name = arg.slice(2);
+      if (BOOLEAN_FLAGS.has(name)) {
+        booleans.add(name);
+      } else {
+        flags.set(name, argv[i + 1]);
+        i += 1;
+      }
     }
   }
 
@@ -49,7 +63,7 @@ export function parseArgs(argv: string[], env: Env = process.env): ParsedArgs {
   const contractId = flags.get("contract") ?? env.DEPRADAR_CONTRACT_ID ?? DEFAULT_CONTRACT_ID;
   const rpcUrl = flags.get("rpc") ?? env.DEPRADAR_RPC_URL ?? DEFAULT_RPC_URL;
 
-  return { bountyId, contractId, rpcUrl };
+  return { bountyId, contractId, rpcUrl, all: booleans.has("all"), json: booleans.has("json") };
 }
 
 export function bigIntReplacer(_key: string, value: unknown) {
@@ -90,37 +104,81 @@ export function formatOutput(input: FormatterInput): string[] {
   return lines;
 }
 
-async function main() {
-  const { bountyId, contractId, rpcUrl } = parseArgs(process.argv.slice(2));
-  const server = new rpc.Server(rpcUrl);
+interface BountyResult {
+  bounty_id: number;
+  bounty: unknown;
+  claims: unknown[];
+}
 
-  const health = await server.getHealth();
-  const { result: bountyCount } = await server.queryContract(contractId, "bounty_count", {});
-  const { result: rawBounty } = await server.queryContract(contractId, "get_bounty", { bounty_id: bountyId });
-
+async function fetchBounty(server: rpc.Server, contractId: string, bountyId: number): Promise<BountyResult> {
+  const { result: bounty } = await server.queryContract(contractId, "get_bounty", { bounty_id: bountyId });
   const claims: unknown[] = [];
-  if (rawBounty !== null) {
-    const bounty = parseBounty(rawBounty);
-    for (let claimId = 0; claimId < bounty.claimCount; claimId += 1) {
-      const { result: rawClaim } = await server.queryContract(contractId, "get_claim", {
+  if (bounty !== null) {
+    const claimCount = Number((bounty as { claim_count: number }).claim_count);
+    for (let claimId = 0; claimId < claimCount; claimId += 1) {
+      const { result: claim } = await server.queryContract(contractId, "get_claim", {
         bounty_id: bountyId,
         claim_id: claimId,
       });
-      claims.push(rawClaim === null ? null : parseClaim(rawClaim));
+      claims.push(claim);
     }
   }
+  return { bounty_id: bountyId, bounty, claims };
+}
 
-  const lines = formatOutput({
-    bountyId,
-    contractId,
-    rpcUrl,
-    health: { status: health.status, latestLedger: health.latestLedger },
-    bountyCount,
-    bounty: rawBounty === null ? null : parseBounty(rawBounty),
-    claims,
+function printBounty(result: BountyResult) {
+  const { bounty_id: bountyId, bounty: rawBounty, claims: rawClaims } = result;
+  console.log(`get_bounty(${bountyId}) =>`);
+  if (rawBounty === null) {
+    console.log("  (no bounty with this ID)");
+    return;
+  }
+  const bounty = parseBounty(rawBounty);
+  console.log(JSON.stringify(bounty, bigIntReplacer, 2));
+
+  rawClaims.forEach((rawClaim, claimId) => {
+    console.log(`\nget_claim(${bountyId}, ${claimId}) =>`);
+    if (rawClaim === null) {
+      console.log("  (no claim with this ID)");
+      return;
+    }
+    const claim = parseClaim(rawClaim);
+    console.log(JSON.stringify(claim, bigIntReplacer, 2));
   });
-  for (const line of lines) {
-    console.log(line);
+}
+
+async function main() {
+  const { bountyId, contractId, rpcUrl, all, json } = parseArgs(process.argv.slice(2));
+  const server = new rpc.Server(rpcUrl);
+
+  const health = await server.getHealth();
+  const { result: count } = await server.queryContract(contractId, "bounty_count", {});
+
+  if (!json) {
+    console.log(`Connected to ${rpcUrl} (status: ${health.status}, latest ledger: ${health.latestLedger})`);
+    console.log(`Contract: ${contractId}`);
+    console.log(`Bounties created: ${count}\n`);
+  }
+
+  const bountyIds = all
+    ? Array.from({ length: Number(count) }, (_unused, index) => index)
+    : [bountyId];
+
+  const results: BountyResult[] = [];
+  for (const id of bountyIds) {
+    results.push(await fetchBounty(server, contractId, id));
+  }
+
+  if (json) {
+    const document = all
+      ? { contract_id: contractId, bounty_count: count, bounties: results }
+      : { contract_id: contractId, bounty_count: count, bounty: results[0] };
+    console.log(JSON.stringify(document, bigIntReplacer, 2));
+    return;
+  }
+
+  for (const result of results) {
+    printBounty(result);
   }
 }
 

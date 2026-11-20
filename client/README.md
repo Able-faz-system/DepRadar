@@ -14,6 +14,9 @@ Default contract ID: `CCPRQANY467KKE4ROKCNW6TH3LY3EPVFRXIXJ5V4VCYHLJKWZPOZYQJQ`
 npm install
 npm start                      # defaults to bounty-id 1
 npm start -- --bounty-id 2
+npm start -- --all             # every bounty, 1..bounty_count()
+npm start -- --json            # single JSON document instead of text
+npm start -- --all --json      # every bounty as one JSON document
 ```
 
 Bounty `1` is real on-chain data: the `create_bounty` -> `submit_claim`
@@ -22,6 +25,60 @@ Bounty `1` is real on-chain data: the `create_bounty` -> `submit_claim`
 claim. Bounty `2` was cancelled and refunded. An unknown ID prints
 `(no bounty with this ID)` rather than erroring, since `get_bounty` returns
 `None` for unknown IDs on-chain.
+
+### `--all`
+
+Prints every bounty on-chain. The client first calls `bounty_count` and then
+fetches bounties `1..count` (with their claims) in order. When combined with
+`--bounty-id`, `--all` wins and the single-ID flag is ignored.
+
+```bash
+npm start -- --all
+```
+
+```text
+Bounty #1
+  creator:   G...
+  ...
+Bounty #2
+  creator:   G...
+  ...
+```
+
+### `--json`
+
+Prints one JSON document instead of the human-readable output. With a single
+bounty (the default, or `--bounty-id N`) the document is an object; with
+`--all` it is an array of those objects, in bounty-ID order. Unknown IDs yield
+`null` for the single-bounty case and are skipped by `--all`.
+
+```bash
+npm start -- --bounty-id 1 --json
+```
+
+```json
+{
+  "id": 1,
+  "creator": "G...",
+  "amount": "10000000",
+  "status": "Released",
+  "claims": [
+    { "claimant": "G...", "status": "Rejected" },
+    { "claimant": "G...", "status": "Accepted" }
+  ]
+}
+```
+
+```bash
+npm start -- --all --json
+```
+
+```json
+[
+  { "id": 1, "creator": "G...", "amount": "10000000", "status": "Released", "claims": [] },
+  { "id": 2, "creator": "G...", "amount": "5000000", "status": "Cancelled", "claims": [] }
+]
+```
 
 ## Configuration
 
@@ -32,6 +89,14 @@ the client can be pointed at another deployment.
 | ----------- | ------------ | ------------------------ | -------------------------------------------------------------- |
 | Contract ID | `--contract` | `DEPRADAR_CONTRACT_ID`   | `CCPRQANY467KKE4ROKCNW6TH3LY3EPVFRXIXJ5V4VCYHLJKWZPOZYQJQ`     |
 | RPC URL     | `--rpc`      | `DEPRADAR_RPC_URL`       | `https://soroban-testnet.stellar.org`                          |
+
+Output options (no environment variable equivalents):
+
+| Flag         | Effect                                                              |
+| ------------ | ------------------------------------------------------------------- |
+| `--bounty-id`| Fetch a single bounty (default `1`)                                 |
+| `--all`      | Fetch every bounty using `bounty_count`; overrides `--bounty-id`    |
+| `--json`     | Emit one JSON document instead of the human-readable text output    |
 
 Precedence is **flag > environment variable > default**: a flag always wins,
 otherwise the environment variable is used if set, otherwise the built-in
@@ -51,6 +116,9 @@ DEPRADAR_CONTRACT_ID=<IGNORED_ID> npm start -- --contract <CONTRACT_ID>
 
 # Combine with other options
 npm start -- --bounty-id 2 --contract <CONTRACT_ID> --rpc <RPC_URL>
+
+# Every bounty, as JSON, against a custom deployment
+npm start -- --all --json --contract <CONTRACT_ID> --rpc <RPC_URL>
 ```
 
 ## Testing
