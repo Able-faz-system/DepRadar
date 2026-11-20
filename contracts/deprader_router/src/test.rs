@@ -3,6 +3,7 @@ use super::{
     MAX_CLAIMS_PER_BOUNTY, MAX_DRIPS_SHARE_BPS, MAX_ECOSYSTEM_LEN, MAX_PACKAGE_LEN, MAX_REF_LEN,
     REVIEW_WINDOW_SECS,
 };
+use crate::pool::{BountyPool, BountyPoolClient};
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, Events, Ledger},
@@ -1397,4 +1398,145 @@ fn test_get_config_matches_constants() {
     assert_eq!(config.max_claims_per_bounty, MAX_CLAIMS_PER_BOUNTY);
     assert_eq!(config.max_ref_len, MAX_REF_LEN);
     assert_eq!(config.max_bounty_duration_secs, MAX_BOUNTY_DURATION_SECS);
+}
+
+// ------------------------------------------------------------ bounty pool
+
+struct PoolSetup<'a> {
+    env: Env,
+    router: DepRaderRouterClient<'a>,
+    pool: BountyPoolClient<'a>,
+    token: TokenClient<'a>,
+    admin: Address,
+}
+
+/// Router + pool wired together, with the pool allowlisted on the router and
+/// `funder` holding 1_000 units of the pool's token.
+fn pool_setup<'a>() -> PoolSetup<'a> {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_timestamp(START);
+
+    let admin = Address::generate(&env);
+    let funder = Address::generate(&env);
+
+    let token_admin = Address::generate(&env);
+    let sac = env.register_stellar_asset_contract_v2(token_admin);
+    let token = TokenClient::new(&env, &sac.address());
+    StellarAssetClient::new(&env, &sac.address()).mint(&funder, &1_000);
+
+    let router_id = env.register(DepRaderRouter, ());
+    let router = DepRaderRouterClient::new(&env, &router_id);
+    router.initialize(&admin);
+    router.allow_token(&sac.address());
+
+    let pool_id = env.register(BountyPool, ());
+    let pool = BountyPoolClient::new(&env, &pool_id);
+    pool.initialize(&admin, &router_id, &sac.address());
+    router.allow_token(&pool_id);
+
+    PoolSetup {
+        env,
+        router,
+        pool,
+        token,
+        admin,
+    }
+}
+
+impl PoolSetup<'_> {
+    fn s(&self, v: &str) -> String {
+        String::from_str(&self.env, v)
+    }
+
+    fn deposit(&self, amount: i128) {
+        let funder = Address::generate(&self.env);
+        StellarAssetClient::new(&self.env, &self.token.address).mint(&funder, &amount);
+        self.pool.deposit(&funder, &amount);
+    }
+
+    fn open(&self, issue_ref: &str, amount: i128) -> Result<u64, Error> {
+        self.pool
+            .try_open_bounty(
+                &self.admin,
+                &self.s(issue_ref),
+                &amount,
+                &DEADLINE,
+                &None,
+                &None,
+                &None,
+            )
+            .map_err(|e| e.unwrap())
+    }
+}
+
+#[test]
+fn test_pool_receives_deposits() {
+    let t = pool_setup();
+    assert_eq!(t.pool.get_balance(), 0);
+
+    t.deposit(300);
+    assert_eq!(t.pool.get_balance(), 300);
+    assert_eq!(t.token.balance(&t.pool.address), 300);
+    assert_eq!(t.pool.get_admin(), Some(t.admin.clone()));
+}
+
+#[test]
+fn test_pool_admin_opens_bounty_from_pool_balance() {
+    let t = pool_setup();
+    t.deposit(500);
+
+    let bounty_id = t.open("org/repo#1", 200).unwrap();
+    assert_eq!(bounty_id, 1);
+    assert_eq!(t.pool.get_balance(), 300);
+    assert_eq!(t.token.balance(&t.pool.address), 300);
+
+    // The bounty is owned by the pool and funded on the router.
+    let bounty = t.router.get_bounty(&bounty_id).unwrap();
+    assert_eq!(bounty.creator, t.pool.address);
+    assert_eq!(bounty.amount, 200);
+    assert_eq!(bounty.token, t.token.address);
+    assert_eq!(bounty.status, BountyStatus::Open);
+    assert_eq!(t.token.balance(&t.router.address), 200);
+}
+
+#[test]
+fn test_pool_open_bounty_rejects_insufficient_balance() {
+    let t = pool_setup();
+    t.deposit(100);
+
+    assert_eq!(t.open("org/repo#1", 101), Err(Error::InsufficientPoolBalance));
+    // Nothing moved and no bounty was created.
+    assert_eq!(t.pool.get_balance(), 100);
+    assert_eq!(t.router.bounty_count(), 0);
+}
+
+#[test]
+fn test_pool_open_bounty_rejects_non_admin() {
+    let t = pool_setup();
+    t.deposit(500);
+    let stranger = Address::generate(&t.env);
+
+    let result = t.pool.try_open_bounty(
+        &stranger,
+        &t.s("org/repo#1"),
+        &100,
+        &DEADLINE,
+        &None,
+        &None,
+        &None,
+    );
+    assert_eq!(result, Err(Ok(Error::NotAuthorized)));
+    assert_eq!(t.pool.get_balance(), 500);
+    assert_eq!(t.router.bounty_count(), 0);
+}
+
+#[test]
+fn test_pool_open_bounty_rejects_invalid_amount() {
+    let t = pool_setup();
+    t.deposit(500);
+
+    assert_eq!(t.open("org/repo#1", 0), Err(Error::InvalidAmount));
+    assert_eq!(t.open("org/repo#1", -1), Err(Error::InvalidAmount));
+    assert_eq!(t.pool.get_balance(), 500);
 }
