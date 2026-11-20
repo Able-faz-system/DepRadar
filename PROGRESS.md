@@ -972,6 +972,53 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Closes:** #165
 - **Status:** In review.
 
+### Build fix — remove pasted chat text from `src/pipeline.rs` — #270
+
+- **What:** Deletes the assistant chat text ("Looking at this task, I need
+  to…") and the stray ```` ```rust ```` / ```` ``` ```` fences that preceded
+  the `//!` module doc comment in [`src/pipeline.rs`](src/pipeline.rs), so
+  the file parses again. The rest of the file was checked against the merged
+  PRs and still contains the deprecation and license checks as intended.
+- **Verified:** `cargo build` gets past `src/pipeline.rs` with no parse
+  errors; `cargo fmt`, `cargo clippy -- -D warnings` and
+  `cargo test --workspace` pass.
+- **Closes:** #270
+- **Status:** In review.
+
+### Build fix — restore the `match` in `run_scan` — #271
+
+- **What:** Restores the `match` over the scan result in
+  [`src/bin/depradar.rs`](src/bin/depradar.rs) that a bad merge had left as a
+  dangling `Err(message) =>` arm after the exit-code `if/else`. `Ok` prints
+  the report and `Err` prints `error: …` and exits 2.
+- **Tests:** `tests/cli.rs` covers `depradar scan` on a missing file,
+  asserting the `error: …` output and exit code 2.
+- **Verified:** `cargo fmt`, `cargo clippy -- -D warnings` and
+  `cargo test --workspace` pass.
+- **Closes:** #271
+- **Status:** In review.
+
+### Build fix — remove conflict marker in `src/registry/npm.rs` — #272
+
+- **What:** Deletes the bare `=======` left by an unresolved merge conflict
+  in [`src/registry/npm.rs`](src/registry/npm.rs), keeping both sides: the
+  `deprecated` / `yanked` fields and the `NpmDocument` type.
+- **Verified:** the file compiles and its existing tests pass; `cargo fmt`,
+  `cargo clippy -- -D warnings` and `cargo test --workspace` pass.
+- **Closes:** #272
+- **Status:** In review.
+
+### Formatting — `cargo fmt --all` on contract and typosquat modules — #278
+
+- **What:** Applies `cargo fmt --all` to
+  `contracts/deprader_router/src/lib.rs`, `test.rs`,
+  [`src/typosquat/dataset.rs`](src/typosquat/dataset.rs) and
+  [`src/typosquat/distance.rs`](src/typosquat/distance.rs). Formatting only —
+  no behavior changes.
+- **Verified:** `cargo fmt --all -- --check` passes; `cargo fmt`,
+  `cargo clippy -- -D warnings` and `cargo test --workspace` pass.
+- **Closes:** #278
+
 ### Frontend — render `proof_ref` and `issue_ref` as links — #140
 
 - **What:** Adds `refToUrl(ref)` to

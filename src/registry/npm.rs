@@ -92,9 +92,14 @@ pub struct PackageMeta {
     /// Whether the version was yanked. Always `false` for npm (the registry
     /// has no yank concept); carried here so crates.io metadata can share
     /// the same shape.
+
+/// The subset of the registry document [`fetch_npm_metadata`] reads.
+=======
     #[serde(default)]
     pub yanked: bool,
 }
+
+/// The subset of the registry document [`fetch_npm_metadata`] reads.
 =======
 
 /// The subset of the registry document [`fetch_npm_metadata`] reads.
