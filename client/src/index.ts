@@ -20,6 +20,7 @@
  * human-readable output; combined with --all it includes every bounty.
  */
 import { rpc } from "@stellar/stellar-sdk";
+import { parseBounty, parseClaim } from "@deprader/contract-types";
 
 const DEFAULT_CONTRACT_ID = "CCPRQANY467KKE4ROKCNW6TH3LY3EPVFRXIXJ5V4VCYHLJKWZPOZYQJQ";
 const DEFAULT_RPC_URL = "https://soroban-testnet.stellar.org";
@@ -84,17 +85,23 @@ async function fetchBounty(server: rpc.Server, contractId: string, bountyId: num
 }
 
 function printBounty(result: BountyResult) {
-  const { bounty_id: bountyId, bounty, claims } = result;
+  const { bounty_id: bountyId, bounty: rawBounty, claims: rawClaims } = result;
   console.log(`get_bounty(${bountyId}) =>`);
-  if (bounty === null) {
+  if (rawBounty === null) {
     console.log("  (no bounty with this ID)");
     return;
   }
+  const bounty = parseBounty(rawBounty);
   console.log(JSON.stringify(bounty, bigIntReplacer, 2));
 
-  claims.forEach((claim, claimId) => {
+  rawClaims.forEach((rawClaim, claimId) => {
     console.log(`\nget_claim(${bountyId}, ${claimId}) =>`);
-    console.log(claim === null ? "  (no claim with this ID)" : JSON.stringify(claim, bigIntReplacer, 2));
+    if (rawClaim === null) {
+      console.log("  (no claim with this ID)");
+      return;
+    }
+    const claim = parseClaim(rawClaim);
+    console.log(JSON.stringify(claim, bigIntReplacer, 2));
   });
 }
 
