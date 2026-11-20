@@ -46,6 +46,11 @@ pub const MAX_REF_LEN: u32 = 256;
 pub const MAX_PACKAGE_LEN: u32 = 128;
 /// Upper bound (in bytes) for the optional `ecosystem` metadata field.
 pub const MAX_ECOSYSTEM_LEN: u32 = 32;
+/// Maximum share of a released bounty that may be routed to the project's
+/// Drips list, in basis points (20%).
+pub const MAX_DRIPS_SHARE_BPS: u32 = 2_000;
+/// Basis points denominator (100%).
+pub const BPS_DENOMINATOR: u32 = 10_000;
 
 /// Contract-wide limits exposed to front ends via [`DepRaderRouter::get_config`].
 #[contracttype]
@@ -98,6 +103,12 @@ pub struct Bounty {
     pub pending_claims: u32,
     /// Track contributions per funder for proportional refunds.
     pub funders: soroban_sdk::Vec<(Address, i128)>,
+    /// Optional share of the payout (in basis points) routed to the project's
+    /// Drips list on release. Capped at [`MAX_DRIPS_SHARE_BPS`].
+    pub drips_share_bps: u32,
+    /// Optional destination address for the Drips share. Required when
+    /// `drips_share_bps` is non-zero.
+    pub drips_destination: Option<Address>,
 }
 
 #[contracttype]
@@ -150,6 +161,7 @@ pub enum Error {
     Paused = 22,
     CreatorCannotClaim = 23,
     AmountTooSmall = 24,
+    InvalidDripsShare = 25,
 }
 
 #[contract]
@@ -331,6 +343,11 @@ impl DepRaderRouter {
     /// `ecosystem`, `package` and `severity` are optional structured finding
     /// metadata; when provided they are validated and stored alongside the
     /// free-text `issue_ref`.
+    ///
+    /// `drips_share_bps` optionally routes a share of the payout to the
+    /// project's Drips list at `drips_destination` on release. The share is
+    /// capped at [`MAX_DRIPS_SHARE_BPS`]; a non-zero share requires a
+    /// destination, and a zero share must not carry one.
     #[allow(clippy::too_many_arguments)]
     pub fn create_bounty(
         env: Env,
@@ -342,6 +359,8 @@ impl DepRaderRouter {
         amount: i128,
         token: Address,
         deadline: u64,
+        drips_share_bps: u32,
+        drips_destination: Option<Address>,
     ) -> Result<u64, Error> {
         creator.require_auth();
 
@@ -366,6 +385,7 @@ impl DepRaderRouter {
         }
         check_ref(&issue_ref)?;
         check_metadata(&ecosystem, &package)?;
+        check_drips_share(drips_share_bps, &drips_destination)?;
         let now = env.ledger().timestamp();
         if deadline <= now || deadline - now > MAX_BOUNTY_DURATION_SECS {
             return Err(Error::InvalidDeadline);
@@ -398,6 +418,8 @@ impl DepRaderRouter {
             claim_count: 0,
             pending_claims: 0,
             funders,
+            drips_share_bps,
+            drips_destination,
         };
         set_persistent(&env, &DataKey::Bounty(bounty_id), &bounty);
 
@@ -760,15 +782,34 @@ impl DepRaderRouter {
         bounty.pending_claims -= 1;
         set_persistent(&env, &DataKey::Bounty(bounty_id), &bounty);
 
-        token::Client::new(&env, &bounty.token).transfer(
+        let drips_share = drips_share_amount(bounty.amount, bounty.drips_share_bps);
+        let claimant_payout = bounty.amount - drips_share;
+
+        let token_client = token::Client::new(&env, &bounty.token);
+        token_client.transfer(
             &env.current_contract_address(),
             &claim.claimant,
-            &bounty.amount,
+            &claimant_payout,
         );
+        if drips_share > 0 {
+            if let Some(destination) = bounty.drips_destination.clone() {
+                token_client.transfer(
+                    &env.current_contract_address(),
+                    &destination,
+                    &drips_share,
+                );
+            }
+        }
 
         env.events().publish(
             (symbol_short!("released"), bounty_id),
-            (claim_id, claim.claimant, bounty.amount, caller),
+            (
+                claim_id,
+                claim.claimant,
+                claimant_payout,
+                caller,
+                drips_share,
+            ),
         );
         Ok(())
     }
@@ -906,6 +947,28 @@ fn load_open_pending(env: &Env, bounty_id: u64, claim_id: u32) -> Result<(Bounty
         return Err(Error::ClaimNotPending);
     }
     Ok((bounty, claim))
+}
+
+/// Validates the optional Drips share on a bounty: the share must not exceed
+/// [`MAX_DRIPS_SHARE_BPS`], a non-zero share requires a destination, and a
+/// zero share must not carry one.
+fn check_drips_share(share_bps: u32, destination: &Option<Address>) -> Result<(), Error> {
+    if share_bps > MAX_DRIPS_SHARE_BPS {
+        return Err(Error::InvalidDripsShare);
+    }
+    if share_bps == 0 {
+        if destination.is_some() {
+            return Err(Error::InvalidDripsShare);
+        }
+    } else if destination.is_none() {
+        return Err(Error::InvalidDripsShare);
+    }
+    Ok(())
+}
+
+/// Computes the Drips share of `amount` for `share_bps` basis points.
+fn drips_share_amount(amount: i128, share_bps: u32) -> i128 {
+    (amount * (share_bps as i128)) / (BPS_DENOMINATOR as i128)
 }
 
 fn check_ref(r: &String) -> Result<(), Error> {

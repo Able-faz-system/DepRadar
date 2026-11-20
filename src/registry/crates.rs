@@ -5,8 +5,8 @@
 
 use serde::Deserialize;
 
+use crate::net::PoliteClient;
 use crate::registry::npm::RegistryError;
-use crate::registry::PoliteClient;
 
 /// Base URL for the crates.io API.
 const CRATES_IO_API: &str = "https://crates.io/api/v1/crates";
@@ -63,7 +63,8 @@ impl CrateMeta {
 
 /// Fetches crate metadata for `name` using the default [`PoliteClient`].
 pub async fn fetch_crate_metadata(name: &str) -> Result<CrateMeta, RegistryError> {
-    let client = PoliteClient::new();
+    let client = PoliteClient::new(1, "DepRadar", std::time::Duration::from_secs(30))
+        .map_err(|e| RegistryError::Network(e.to_string()))?;
     fetch_crate_metadata_with(&client, name).await
 }
 
@@ -85,7 +86,10 @@ pub async fn fetch_crate_metadata_at(
     url: &str,
     name: &str,
 ) -> Result<CrateMeta, RegistryError> {
-    let body = client.get(url).await?;
+    let body = client
+        .get(url, &[])
+        .await
+        .map_err(|e| RegistryError::Network(e.to_string()))?;
     let response: CrateResponse = serde_json::from_str(&body)?;
 
     Ok(CrateMeta {
