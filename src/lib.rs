@@ -1,3 +1,5 @@
+#![warn(missing_docs)]
+
 //! DepRadar off-chain toolkit.
 //!
 //! This crate hosts the crawler and scanner modules that feed findings to the

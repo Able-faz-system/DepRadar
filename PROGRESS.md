@@ -10,6 +10,71 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### Docs — Architecture guide with sequence diagrams — #155
+
+- **What:** Adds [`docs/architecture.md`](docs/architecture.md) with Mermaid
+  sequence diagrams for: scan → finding (lockfile through pipeline to
+  report), create bounty → claim → review → release (complete bounty
+  lifecycle), cancel bounty (refund path), and dashboard reads (RPC
+  simulation flow). Describes each module's responsibility in one paragraph:
+  Crawler (discovers packages from registries), Scanner (typosquat, CVE,
+  behavioral, license checks), Bounty Router (locks funds, records claims,
+  pays out), Dashboard (read-only React view), CLI (scan command) and Client
+  (Node wrapper for contract reads). The README now links to it under a new
+  Documentation section.
+- **Verified:** All internal links checked; Mermaid syntax validated; every
+  contract method and module referenced exists in the codebase.
+- **Closes:** #155
+
+### Docs — Threat model for the bounty router — #156
+
+- **What:** Adds [`docs/threat-model.md`](docs/threat-model.md) documenting
+  actors (funder, researcher, admin), assets (locked funds, claim priority,
+  contract state), trust assumptions (admin honesty, key security, network
+  correctness, token legitimacy), and each known attack with its mitigation
+  or open status: claim squatting (✅ multiple claims per bounty), admin
+  compromise (⚠️ two-step rotation but current admin can release
+  immediately), malicious token (⚠️ token allowlist not yet implemented,
+  #121/#122), griefing via claim spam (✅ capped at 50 claims per bounty),
+  storage expiry (✅ TTL extended on every write), creator rug-pull (✅
+  deadline + review window enforced), double-release (✅ status check
+  prevents), claim proof forgery (⚠️ admin responsibility, no on-chain
+  validation). Links related issues and test coverage for each threat. The
+  README Documentation section now includes it.
+- **Verified:** All contract method references and test names checked; issue
+  links exist; security assumptions match SECURITY.md.
+- **Closes:** #156
+
+### Docs — Publish Rust API docs — #157
+
+- **What:** Adds `.github/workflows/docs.yml` that builds `cargo doc
+  --no-deps --workspace` and the dashboard, then publishes both to GitHub
+  Pages under `/api/` (Rust docs) and `/` (dashboard). Turns on
+  `#![warn(missing_docs)]` in `src/lib.rs`. The README Documentation section
+  links to the published API docs at
+  `https://depradarorg.github.io/DepRadar/api/`.
+- **Verified:** Workflow syntax valid; README link added; `#![warn(missing_docs)]`
+  present in `src/lib.rs`.
+- **Closes:** #157
+
+### Docs — Tutorial: "Report your first typosquat" — #158
+
+- **What:** Adds [`docs/tutorial.md`](docs/tutorial.md) with a guided path
+  from scanning a lockfile (`depradar scan package-lock.json` on a typosquat
+  like `expresss`), interpreting the result (distance, confidence, severity),
+  reporting to the registry (npm malware form), funding a bounty on testnet
+  (`stellar contract invoke ... create_bounty` with native XLM), submitting a
+  claim (`submit_claim` with a gist proof reference), admin review and release
+  (simulated with `release`), verifying the payout (balance check, Stellar
+  Expert), and viewing on the dashboard. Uses real commands with the live
+  testnet contract ID, token address, and `stellar-cli` invocations. Includes
+  a troubleshooting section and commands reference table. The README
+  Documentation section now links to it.
+- **Verified:** All commands follow the contract's actual interface; testnet
+  contract ID and token address match README and DEPLOYMENT.md; every link
+  resolves.
+- **Closes:** #158
+
 ### Docs — FAQ — #<this issue>
 
 - **What:** Adds [`docs/FAQ.md`](docs/FAQ.md) with at least ten common
