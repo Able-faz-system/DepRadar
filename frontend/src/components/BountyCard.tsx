@@ -1,12 +1,13 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { formatAmount, relativeTime, splitIssueRef, tokenSymbol } from "../lib/format";
+import { formatAmount, refToUrl, relativeTime, splitIssueRef, tokenSymbol } from "../lib/format";
 import type { Bounty } from "../lib/types";
 import { Identicon, Skeleton, StatusBadge } from "./ui";
 
 export function BountyCard({ bounty }: { bounty: Bounty }) {
   const { t } = useTranslation();
   const { ecosystem, text } = splitIssueRef(bounty.issueRef);
+  const issueUrl = refToUrl(bounty.issueRef);
   const open = bounty.status === "Open";
   return (
     <Link to={`/bounty/${bounty.id}`} className={`card bounty-card status-${bounty.status.toLowerCase()}`}>
@@ -16,7 +17,20 @@ export function BountyCard({ bounty }: { bounty: Bounty }) {
         <StatusBadge status={bounty.status} />
       </div>
 
-      <h3 className="card-title">{text}</h3>
+      <h3 className="card-title">
+        {text}
+        {issueUrl && (
+          <a
+            href={issueUrl}
+            className="card-issue-link"
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+          >
+            ↗
+          </a>
+        )}
+      </h3>
 
       <div className="card-reward">
         <span className="reward-amount">{formatAmount(bounty.amount)}</span>
