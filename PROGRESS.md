@@ -10,6 +10,22 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### Frontend — Add missing key props in Layout.tsx — #279
+
+- **What:** Two places in `frontend/src/components/Layout.tsx` required `key`
+  props to avoid React reconciliation warnings.
+  1. The `<code>` element inside the `Trans` component's `components` array in
+     the footer — React-i18next indexes the array and React requires a `key`
+     on each element. Added `key="code"` and an explanatory comment so the
+     requirement is not silently dropped in future edits.
+  2. The nav links in the topbar were static repeated JSX without keys.
+     Refactored to a `NAV_LINKS` constant array mapped with `key` props on
+     each rendered `<Link>` / `<a>`, which also makes the nav easier to extend.
+- **Verified:** No "missing key" console warnings; `npm run typecheck` passes;
+  visual output is unchanged.
+- **By:** joshfatoye0011-bit
+- **Closes:** #279
+
 ### Docs — Architecture guide with sequence diagrams — #155
 
 - **What:** Adds [`docs/architecture.md`](docs/architecture.md) with Mermaid
