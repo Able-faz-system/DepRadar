@@ -10,6 +10,22 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### Security — Document and suppress cargo audit advisory failures — #280
+
+- **What:** The weekly Dependency Audit workflow was failing on two open
+  advisories: `RUSTSEC-2026-0387` (`crypto-bigint 0.5.5`, fixed in `0.7.6`)
+  and a `quinn-proto 0.11.17` ACK-delay panic advisory. Because neither crate
+  can be updated in one step without migrating the whole dependency tree,
+  both are added as dated, documented `[advisories.ignore]` entries in
+  `deny.toml` with mandatory revisit dates of **2026-12-15** and links to the
+  upstream tracking issues. The entries explain why the fix is blocked and
+  what the resolution step is (`cargo update -p <crate>` once a patched
+  version is available).
+- **Verified:** `deny.toml` syntax is valid; entries carry explicit reasons
+  and revisit dates per the project's audit policy.
+- **By:** joshfatoye0011-bit
+- **Closes:** #280
+
 ### Docs — Architecture guide with sequence diagrams — #155
 
 - **What:** Adds [`docs/architecture.md`](docs/architecture.md) with Mermaid
