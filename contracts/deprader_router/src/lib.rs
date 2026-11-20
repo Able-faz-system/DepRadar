@@ -123,6 +123,10 @@ enum DataKey {
     AllowedToken(Address),
     MinAmount(Address),
     Paused,
+    /// Admin-configured address that receives Drips streamed funds.
+    PoolAddress,
+    /// Pool balance per token, tracked so bounties can be opened from it.
+    PoolBalance(Address),
 }
 
 #[contracterror]
@@ -148,6 +152,8 @@ pub enum Error {
     Paused = 22,
     CreatorCannotClaim = 23,
     AmountTooSmall = 24,
+    PoolNotConfigured = 25,
+    InsufficientPoolBalance = 26,
 }
 
 #[contract]
@@ -290,6 +296,166 @@ impl DepRaderRouter {
             .persistent()
             .get(&DataKey::MinAmount(token))
             .unwrap_or(0)
+    }
+
+    // ----------------------------------------------------------- drips pool
+
+    /// Admin-only: sets the pool address that receives Drips streamed funds.
+    /// Funds streamed to this address are credited to the pool balance when
+    /// deposited via [`DepRaderRouter::deposit_to_pool`].
+    pub fn set_pool_address(env: Env, pool: Address) -> Result<(), Error> {
+        let admin = require_admin(&env)?;
+        set_persistent(&env, &DataKey::PoolAddress, &pool);
+        env.events()
+            .publish((symbol_short!("pool_set"),), (pool, admin));
+        Ok(())
+    }
+
+    /// Returns the configured Drips pool address, if any.
+    pub fn get_pool_address(env: Env) -> Option<Address> {
+        env.storage().persistent().get(&DataKey::PoolAddress)
+    }
+
+    /// Returns the tracked pool balance for `token`.
+    pub fn get_pool_balance(env: Env, token: Address) -> i128 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::PoolBalance(token))
+            .unwrap_or(0)
+    }
+
+    /// Credits `amount` of `token` to the pool balance. The pool address (or
+    /// the admin) must authorize the deposit, and the tokens are transferred
+    /// from `from` into the contract. This is how Drips streamed funds enter
+    /// the pool.
+    pub fn deposit_to_pool(
+        env: Env,
+        from: Address,
+        token: Address,
+        amount: i128,
+    ) -> Result<(), Error> {
+        from.require_auth();
+
+        if amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+
+        let pool: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PoolAddress)
+            .ok_or(Error::PoolNotConfigured)?;
+        let admin = stored_admin(&env)?;
+        if from != pool && from != admin {
+            return Err(Error::NotAuthorized);
+        }
+
+        let balance_key = DataKey::PoolBalance(token.clone());
+        let balance: i128 = env
+            .storage()
+            .persistent()
+            .get(&balance_key)
+            .unwrap_or(0);
+        set_persistent(&env, &balance_key, &(balance + amount));
+
+        token::Client::new(&env, &token).transfer(
+            &from,
+            &env.current_contract_address(),
+            &amount,
+        );
+
+        env.events()
+            .publish((symbol_short!("pool_dep"),), (from, token, amount));
+        Ok(())
+    }
+
+    /// Admin-only: opens a bounty funded from the pool balance instead of
+    /// from a creator's wallet. The pool balance for `token` is debited and
+    /// the admin becomes the bounty's creator.
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_bounty_from_pool(
+        env: Env,
+        issue_ref: String,
+        ecosystem: Option<Symbol>,
+        package: Option<String>,
+        severity: Option<u32>,
+        amount: i128,
+        token: Address,
+        deadline: u64,
+    ) -> Result<u64, Error> {
+        let admin = require_admin(&env)?;
+
+        if Self::is_paused(env.clone()) {
+            return Err(Error::Paused);
+        }
+
+        if !Self::is_token_allowed(env.clone(), token.clone()) {
+            return Err(Error::TokenNotAllowed);
+        }
+        if amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+        let min_amount: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::MinAmount(token.clone()))
+            .unwrap_or(0);
+        if amount < min_amount {
+            return Err(Error::AmountTooSmall);
+        }
+        check_ref(&issue_ref)?;
+        check_metadata(&ecosystem, &package)?;
+        let now = env.ledger().timestamp();
+        if deadline <= now || deadline - now > MAX_BOUNTY_DURATION_SECS {
+            return Err(Error::InvalidDeadline);
+        }
+
+        let balance_key = DataKey::PoolBalance(token.clone());
+        let balance: i128 = env
+            .storage()
+            .persistent()
+            .get(&balance_key)
+            .unwrap_or(0);
+        if balance < amount {
+            return Err(Error::InsufficientPoolBalance);
+        }
+        set_persistent(&env, &balance_key, &(balance - amount));
+
+        let bounty_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::NextBountyId)
+            .unwrap_or(1);
+        env.storage()
+            .instance()
+            .set(&DataKey::NextBountyId, &(bounty_id + 1));
+        bump_instance(&env);
+
+        let mut funders = soroban_sdk::Vec::new(&env);
+        funders.push_back((admin.clone(), amount));
+
+        let bounty = Bounty {
+            creator: admin.clone(),
+            issue_ref,
+            ecosystem,
+            package,
+            severity,
+            amount,
+            token: token.clone(),
+            status: BountyStatus::Open,
+            created_at: now,
+            deadline,
+            claim_count: 0,
+            pending_claims: 0,
+            funders,
+        };
+        set_persistent(&env, &DataKey::Bounty(bounty_id), &bounty);
+
+        env.events().publish(
+            (symbol_short!("pool_bty"), bounty_id),
+            (admin, token, amount, deadline),
+        );
+        Ok(bounty_id)
     }
 
     // ------------------------------------------------------------- bounties

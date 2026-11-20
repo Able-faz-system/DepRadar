@@ -51,3 +51,23 @@ DEPRADAR_CONTRACT_ID=<IGNORED_ID> npm start -- --contract <CONTRACT_ID>
 
 # Combine with other options
 npm start -- --bounty-id 2 --contract <CONTRACT_ID> --rpc <RPC_URL>
+```
+
+## Testing
+
+The client uses [Vitest](https://vitest.dev/). Run the suite and the type
+checker from `client/`:
+
+```bash
+npm test          # run the unit tests once
+npm run typecheck # type-check without emitting
+```
+
+Argument parsing and output formatting live in `client/src/` as standalone,
+exported functions so they can be tested without hitting the network:
+
+- `parseArgs(argv, env)` resolves the effective configuration from CLI flags,
+  environment variables and defaults (precedence **flag > env > default**). It
+  throws on a missing or non-numeric `--bounty-id` and on an unknown flag.
+- The formatter turns a bounty and its claims into the printed report,
+  including the `(no bounty with this ID)` line for unknown IDs.

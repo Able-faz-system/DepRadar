@@ -28,6 +28,32 @@ ask in the thread — it's cheaper than a PR that has to be reworked.
 
 ## Development Setup
 
+### One-click setup with GitHub Codespaces
+
+The repo ships a [dev container](.devcontainer/devcontainer.json) with Rust
+stable, the `wasm32v1-none` target, Node.js 22, and the Stellar CLI already
+installed. On first create it runs `cargo fetch` plus `npm ci` in `frontend/`
+and `client/`, so you can start working without installing anything locally.
+
+To use it:
+
+1. Open the repository on GitHub and click **Code → Codespaces → Create
+   codespace on main** (or the **Open in GitHub Codespaces** badge, if
+   present). The container builds and the post-create step fetches
+   dependencies automatically.
+2. Once the terminal is ready, verify the toolchain:
+
+   ```bash
+   cargo test --workspace --locked
+   cd frontend && npm test
+   ```
+
+The same configuration works with the VS Code **Dev Containers** extension
+locally — run **Dev Containers: Reopen in Container** from the command
+palette.
+
+### Local setup
+
 Prerequisites: a stable Rust toolchain, the `wasm32v1-none` target (for the
 contract), and Node.js 22+ (for `client/`).
 
