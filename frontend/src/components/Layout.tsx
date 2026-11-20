@@ -5,6 +5,12 @@ import { CONTRACT_ID, NETWORK, explorer } from "../config";
 import { shortAddress } from "../lib/format";
 import { LanguageSelector } from "./LanguageSelector";
 
+const NAV_LINKS: { key: string; to?: string; href?: string; labelKey: string; className?: string }[] = [
+  { key: "leaderboard", to: "/leaderboard", labelKey: "nav.leaderboard" },
+  { key: "about", to: "/about", labelKey: "nav.about" },
+  { key: "github", href: "https://github.com/DepRadarOrg/DepRadar", labelKey: "nav.github", className: "btn btn-ghost" },
+];
+
 export function Layout() {
   const { pathname } = useLocation();
   const { t } = useTranslation();
@@ -24,12 +30,17 @@ export function Layout() {
             DepRadar
           </Link>
           <nav className="topbar-meta">
-            <Link to="/leaderboard" className="btn btn-ghost">
-              {t("nav.leaderboard")}
-            </Link>
-            <Link to="/about" className="btn btn-ghost">
-              {t("nav.about")}
-            </Link>
+            {NAV_LINKS.map(({ key, to, href, labelKey, className = "btn btn-ghost" }) =>
+              to ? (
+                <Link key={key} to={to} className={className}>
+                  {t(labelKey)}
+                </Link>
+              ) : (
+                <a key={key} href={href} target="_blank" rel="noreferrer" className={className}>
+                  {t(labelKey)}
+                </a>
+              )
+            )}
             <LanguageSelector />
             <span className="net">
               <span className="live-dot" aria-hidden />
@@ -37,9 +48,6 @@ export function Layout() {
             </span>
             <a href={explorer.contract(CONTRACT_ID)} target="_blank" rel="noreferrer" className="mono hide-sm">
               {shortAddress(CONTRACT_ID)}
-            </a>
-            <a className="btn btn-ghost" href="https://github.com/DepRadarOrg/DepRadar" target="_blank" rel="noreferrer">
-              {t("nav.github")}
             </a>
           </nav>
         </div>
@@ -49,6 +57,8 @@ export function Layout() {
       </main>
       <footer className="footer">
         <span>
+          {/* Each element in the components array passed to Trans must carry a
+              key prop so React can reconcile the list without warnings. */}
           <Trans i18nKey="footer.readOnly" components={[<code key="code" />]} />
         </span>
         <span className="muted">{t("footer.built")}</span>
