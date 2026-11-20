@@ -875,3 +875,56 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** MamaLove360
 - **Closes:** #165
 - **Status:** In review.
+
+### Fix — `src/license.rs` imports a non-existent `crate::finding` module — #273
+
+- **What:** `src/license.rs` imported `Finding`, `FindingKind` and
+  `Severity` from `crate::finding`, which doesn't exist. The imports now
+  point at the real modules — `Finding` / `FindingKind` from
+  [`src/model.rs`](src/model.rs) and `Severity` from
+  [`src/cve/severity.rs`](src/cve/severity.rs) — and the license checks
+  build findings with the existing types.
+- **Verified:** `cargo fmt`, `cargo clippy -- -D warnings` and
+  `cargo test --workspace` pass, including the `license` module tests.
+- **Closes:** #273
+- **Status:** In review.
+
+### Fix — `src/registry/crates.rs` imports `PoliteClient` from the wrong module — #274
+
+- **What:** `src/registry/crates.rs` imported `PoliteClient` from
+  `crate::registry`, but it is defined in [`src/net.rs`](src/net.rs). The
+  import is now `crate::net::PoliteClient`, and the follow-on type errors in
+  the file are fixed.
+- **Verified:** `cargo fmt`, `cargo clippy -- -D warnings` and
+  `cargo test --workspace` pass, including the `registry::crates` tests.
+- **Closes:** #274
+- **Status:** In review.
+
+### Fix — add the missing `flate2` dependency — #275
+
+- **What:** [`src/behavioral/tarball.rs`](src/behavioral/tarball.rs) uses
+  `flate2::read::GzDecoder`, but `flate2` wasn't in `Cargo.toml`, so the
+  build failed. `flate2` is now a `[dependencies]` entry and `Cargo.lock`
+  is updated.
+- **Verified:** `cargo fmt`, `cargo clippy -- -D warnings` and
+  `cargo test --workspace` pass, including the `behavioral::tarball` tests;
+  `cargo deny check licenses bans sources` still passes.
+- **Closes:** #275
+- **Status:** In review.
+
+### Fix — `depradar explain` uses a non-existent `deprader::osv` module — #276
+
+- **What:** `run_explain`, `explain_text` and `explain_json` in
+  [`src/bin/depradar.rs`](src/bin/depradar.rs) referenced
+  `deprader::osv::Vuln`, which doesn't exist. They now use the real types
+  from [`src/cve/osv_client.rs`](src/cve/osv_client.rs) (re-exported via
+  [`src/cve/mod.rs`](src/cve/mod.rs)) — `OsvVulnerability` and its nested
+  structs — so `depradar explain GHSA-…` prints the summary, severity and
+  fixed version in both text and JSON.
+- **Tests:** An `assert_cmd` integration test in [`tests/cli.rs`](tests/cli.rs)
+  runs `depradar explain` against a mock OSV server and checks the printed
+  summary, severity and fixed version in text and JSON output.
+- **Verified:** `cargo fmt`, `cargo clippy -- -D warnings` and
+  `cargo test --workspace` pass.
+- **Closes:** #276
+- **Status:** In review.
