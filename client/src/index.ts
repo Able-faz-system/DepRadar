@@ -19,15 +19,16 @@
  * of a single bounty. --json prints a single JSON document instead of the
  * human-readable output; combined with --all it includes every bounty.
  */
+import { pathToFileURL } from "node:url";
 import { rpc } from "@stellar/stellar-sdk";
 import { parseBounty, parseClaim } from "@deprader/contract-types";
 
-const DEFAULT_CONTRACT_ID = "CCPRQANY467KKE4ROKCNW6TH3LY3EPVFRXIXJ5V4VCYHLJKWZPOZYQJQ";
-const DEFAULT_RPC_URL = "https://soroban-testnet.stellar.org";
+export const DEFAULT_CONTRACT_ID = "CCPRQANY467KKE4ROKCNW6TH3LY3EPVFRXIXJ5V4VCYHLJKWZPOZYQJQ";
+export const DEFAULT_RPC_URL = "https://soroban-testnet.stellar.org";
 
 const BOOLEAN_FLAGS = new Set(["all", "json"]);
 
-interface Options {
+export interface ParsedArgs {
   bountyId: number;
   contractId: string;
   rpcUrl: string;
@@ -35,7 +36,9 @@ interface Options {
   json: boolean;
 }
 
-function parseArgs(argv: string[]): Options {
+export type Env = Record<string, string | undefined>;
+
+export function parseArgs(argv: string[], env: Env = process.env): ParsedArgs {
   const flags = new Map<string, string>();
   const booleans = new Set<string>();
   for (let i = 0; i < argv.length; i += 1) {
@@ -51,15 +54,54 @@ function parseArgs(argv: string[]): Options {
     }
   }
 
-  const bountyId = Number(flags.get("bounty-id") ?? "1");
+  const rawBountyId = flags.get("bounty-id") ?? "1";
+  const bountyId = Number(rawBountyId);
   if (!Number.isInteger(bountyId) || bountyId < 0) {
-    throw new Error(`--bounty-id must be a non-negative integer, got: ${flags.get("bounty-id")}`);
+    throw new Error(`--bounty-id must be a non-negative integer, got: ${rawBountyId}`);
   }
 
-  const contractId = flags.get("contract") ?? process.env.DEPRADAR_CONTRACT_ID ?? DEFAULT_CONTRACT_ID;
-  const rpcUrl = flags.get("rpc") ?? process.env.DEPRADAR_RPC_URL ?? DEFAULT_RPC_URL;
+  const contractId = flags.get("contract") ?? env.DEPRADAR_CONTRACT_ID ?? DEFAULT_CONTRACT_ID;
+  const rpcUrl = flags.get("rpc") ?? env.DEPRADAR_RPC_URL ?? DEFAULT_RPC_URL;
 
   return { bountyId, contractId, rpcUrl, all: booleans.has("all"), json: booleans.has("json") };
+}
+
+export function bigIntReplacer(_key: string, value: unknown) {
+  return typeof value === "bigint" ? value.toString() : value;
+}
+
+export interface FormatterInput {
+  bountyId: number;
+  contractId: string;
+  rpcUrl: string;
+  health: { status: string; latestLedger: number };
+  bountyCount: unknown;
+  bounty: unknown;
+  claims: unknown[];
+}
+
+/** Renders the full read-client report as a list of output lines. */
+export function formatOutput(input: FormatterInput): string[] {
+  const { bountyId, contractId, rpcUrl, health, bountyCount, bounty, claims } = input;
+  const lines: string[] = [];
+
+  lines.push(`Connected to ${rpcUrl} (status: ${health.status}, latest ledger: ${health.latestLedger})`);
+  lines.push(`Contract: ${contractId}`);
+  lines.push(`Bounties created: ${bountyCount}\n`);
+
+  lines.push(`get_bounty(${bountyId}) =>`);
+  if (bounty === null) {
+    lines.push("  (no bounty with this ID)");
+    return lines;
+  }
+  lines.push(JSON.stringify(bounty, bigIntReplacer, 2));
+
+  claims.forEach((claim, claimId) => {
+    lines.push(`\nget_claim(${bountyId}, ${claimId}) =>`);
+    lines.push(claim === null ? "  (no claim with this ID)" : JSON.stringify(claim, bigIntReplacer, 2));
+  });
+
+  return lines;
 }
 
 interface BountyResult {
@@ -140,11 +182,12 @@ async function main() {
   }
 }
 
-function bigIntReplacer(_key: string, value: unknown) {
-  return typeof value === "bigint" ? value.toString() : value;
-}
+const isDirectRun =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
-main().catch((err) => {
-  console.error("Read failed:", err instanceof Error ? err.message : err);
-  process.exitCode = 1;
-});
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error("Read failed:", err instanceof Error ? err.message : err);
+    process.exitCode = 1;
+  });
+}
