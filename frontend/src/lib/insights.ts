@@ -88,3 +88,53 @@ export function bountyTimeline(bounty: Bounty, claims: Claim[], now = Date.now()
   }
   return events;
 }
+
+export interface ResearcherRank {
+  claimant: string;
+  totalPaid: bigint;
+  count: number;
+}
+
+/**
+ * Ranks researchers by total earnings from released bounties.
+ * Order: totalPaid descending, count descending, claimant address ascending.
+ */
+export function rankResearchers(bounties: Bounty[], claims: Claim[]): ResearcherRank[] {
+  const released = new Map<number, Bounty>();
+  for (const b of bounties) {
+    if (b.status === "Released") {
+      released.set(b.id, b);
+    }
+  }
+
+  const aggregates = new Map<string, { totalPaid: bigint; count: number }>();
+
+  for (const c of claims) {
+    if (c.status === "Accepted") {
+      const bounty = released.get(c.bountyId);
+      if (bounty) {
+        const entry = aggregates.get(c.claimant) ?? { totalPaid: 0n, count: 0 };
+        entry.totalPaid += bounty.amount;
+        entry.count += 1;
+        aggregates.set(c.claimant, entry);
+      }
+    }
+  }
+
+  const rankings: ResearcherRank[] = [];
+  for (const [claimant, { totalPaid, count }] of aggregates.entries()) {
+    rankings.push({ claimant, totalPaid, count });
+  }
+
+  rankings.sort((a, b) => {
+    if (b.totalPaid !== a.totalPaid) {
+      return b.totalPaid > a.totalPaid ? 1 : -1;
+    }
+    if (b.count !== a.count) {
+      return b.count - a.count;
+    }
+    return a.claimant.localeCompare(b.claimant);
+  });
+
+  return rankings;
+}

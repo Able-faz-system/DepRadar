@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NATIVE_XLM_SAC } from "../config";
-import { boardStats, bountyTimeline } from "./insights";
+import { boardStats, bountyTimeline, rankResearchers } from "./insights";
 import type { Bounty, Claim } from "./types";
 
 const base: Bounty = {
@@ -76,5 +76,65 @@ describe("bountyTimeline", () => {
     const events = bountyTimeline({ ...base, status: "Cancelled" }, [], 9_000);
     expect(events.map((e) => e.kind)).toEqual(["created", "deadline", "refunded"]);
     expect(events[1].title).toBe("Claims closed");
+  });
+});
+
+describe("rankResearchers", () => {
+  it("ranks researchers by total payout descending", () => {
+    const bounties: Bounty[] = [
+      { ...base, id: 1, status: "Released", amount: 100_000_000n },
+      { ...base, id: 2, status: "Released", amount: 40_000_000n },
+      { ...base, id: 3, status: "Released", amount: 30_000_000n },
+    ];
+    const claims: Claim[] = [
+      { ...claim(1, 1_000, "Accepted"), bountyId: 1, claimant: "ALICE" },
+      { ...claim(2, 2_000, "Accepted"), bountyId: 2, claimant: "BOB" },
+      { ...claim(3, 3_000, "Accepted"), bountyId: 3, claimant: "BOB" },
+    ];
+    const ranked = rankResearchers(bounties, claims);
+    expect(ranked).toEqual([
+      { claimant: "ALICE", totalPaid: 100_000_000n, count: 1 },
+      { claimant: "BOB", totalPaid: 70_000_000n, count: 2 },
+    ]);
+  });
+
+  it("breaks payout ties by count descending, then address ascending", () => {
+    const bounties: Bounty[] = [
+      { ...base, id: 1, status: "Released", amount: 50_000_000n },
+      { ...base, id: 2, status: "Released", amount: 25_000_000n },
+      { ...base, id: 3, status: "Released", amount: 25_000_000n },
+      { ...base, id: 4, status: "Released", amount: 50_000_000n },
+    ];
+    const claims: Claim[] = [
+      { ...claim(1, 1_000, "Accepted"), bountyId: 1, claimant: "CHARLIE" },
+      { ...claim(2, 2_000, "Accepted"), bountyId: 2, claimant: "BOB" },
+      { ...claim(3, 3_000, "Accepted"), bountyId: 3, claimant: "BOB" },
+      { ...claim(4, 4_000, "Accepted"), bountyId: 4, claimant: "ALICE" },
+    ];
+    const ranked = rankResearchers(bounties, claims);
+    expect(ranked).toEqual([
+      { claimant: "BOB", totalPaid: 50_000_000n, count: 2 },
+      { claimant: "ALICE", totalPaid: 50_000_000n, count: 1 },
+      { claimant: "CHARLIE", totalPaid: 50_000_000n, count: 1 },
+    ]);
+  });
+
+  it("ignores unreleased bounties and unaccepted claims", () => {
+    const bounties: Bounty[] = [
+      { ...base, id: 1, status: "Open", amount: 100_000_000n },
+      { ...base, id: 2, status: "Cancelled", amount: 100_000_000n },
+      { ...base, id: 3, status: "Released", amount: 50_000_000n },
+    ];
+    const claims: Claim[] = [
+      { ...claim(1, 1_000, "Accepted"), bountyId: 1, claimant: "ALICE" },
+      { ...claim(2, 2_000, "Accepted"), bountyId: 2, claimant: "BOB" },
+      { ...claim(3, 3_000, "Pending"), bountyId: 3, claimant: "CHARLIE" },
+      { ...claim(4, 4_000, "Rejected"), bountyId: 3, claimant: "DAVE" },
+      { ...claim(5, 5_000, "Accepted"), bountyId: 3, claimant: "EVE" },
+    ];
+    const ranked = rankResearchers(bounties, claims);
+    expect(ranked).toEqual([
+      { claimant: "EVE", totalPaid: 50_000_000n, count: 1 },
+    ]);
   });
 });

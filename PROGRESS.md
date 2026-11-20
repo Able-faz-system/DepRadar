@@ -75,6 +75,14 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
   resolves.
 - **Closes:** #158
 
+### Frontend — Leaderboard of top researchers — #399
+
+- **What:** Adds `/leaderboard` page ranking researchers by total paid rewards from released bounties and count of bounties won. Implements `rankResearchers` in `frontend/src/lib/insights.ts` with unit tests covering payout ordering, tie-breaking, and filtering of unreleased bounties/unaccepted claims. Adds navigation link in topbar, i18n scaffolding fixes, and routing in `App.tsx`.
+- **Verified:** `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` all pass 100% green in `frontend/`.
+- **By:** genda-benjamin
+- **Closes:** #399
+- **Status:** In review.
+
 ### Docs — FAQ — #<this issue>
 
 - **What:** Adds [`docs/FAQ.md`](docs/FAQ.md) with at least ten common
