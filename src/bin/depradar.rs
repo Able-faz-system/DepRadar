@@ -506,7 +506,7 @@ fn scan(path: &Path, offline: bool, quiet: bool) -> Result<Scanned, String> {
 
 /// Fetches one advisory from OSV and prints its details.
 fn run_explain(id: &str, format: Format) -> ExitCode {
-    let client = deprader::osv::OsvClient::new();
+    let client = deprader::cve::osv_client::OsvClient::new();
     let vuln = match client.fetch_vuln(id) {
         Ok(vuln) => vuln,
         Err(err) => {
@@ -527,7 +527,7 @@ fn run_explain(id: &str, format: Format) -> ExitCode {
 }
 
 /// Renders an advisory as human-readable text.
-fn explain_text(vuln: &deprader::osv::Vuln) -> String {
+fn explain_text(vuln: &deprader::cve::OsvVulnerability) -> String {
     use std::fmt::Write;
 
     let mut out = String::new();
@@ -536,7 +536,11 @@ fn explain_text(vuln: &deprader::osv::Vuln) -> String {
         let _ = writeln!(out, "{summary}");
     }
     if let Some(severity) = vuln.severity.first() {
-        let _ = writeln!(out, "Severity: {} ({})", severity.score, severity.kind);
+        let _ = writeln!(
+            out,
+            "Severity: {} ({})",
+            severity.score, severity.severity_type
+        );
     }
     for affected in &vuln.affected {
         let _ = writeln!(out, "Affected: {}", affected.package.name);
@@ -561,14 +565,14 @@ fn explain_text(vuln: &deprader::osv::Vuln) -> String {
 }
 
 /// Renders an advisory as a single JSON document.
-fn explain_json(vuln: &deprader::osv::Vuln) -> Value {
+fn explain_json(vuln: &deprader::cve::OsvVulnerability) -> Value {
     json!({
         "id": vuln.id,
         "summary": vuln.summary,
         "severity": vuln
             .severity
             .iter()
-            .map(|s| json!({ "type": s.kind, "score": s.score }))
+            .map(|s| json!({ "type": s.severity_type, "score": s.score }))
             .collect::<Vec<_>>(),
         "affected": vuln
             .affected
@@ -594,7 +598,7 @@ fn explain_json(vuln: &deprader::osv::Vuln) -> Value {
         "references": vuln
             .references
             .iter()
-            .map(|r| json!({ "type": r.kind, "url": r.url }))
+            .map(|r| json!({ "type": r.reference_type, "url": r.url }))
             .collect::<Vec<_>>(),
     })
 }
