@@ -866,6 +866,54 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Closes:** #164
 - **Status:** In review.
 
+### Shared contract types between `client/` and `frontend/` — #145
+
+- **What:** Adds `packages/contract-types/`, a small TypeScript package
+  exporting the `Bounty` and `Claim` types plus `parseBounty` and
+  `parseClaim`, so the two apps decode the router's structs with one
+  implementation instead of two copies that can drift. Both `client/` and
+  `frontend/` consume it through npm workspaces (a relative import in the
+  client's tsconfig paths), and their local parsing code is deleted.
+- **Verified:** `npm run typecheck` passes in `client/`; `npm run lint`,
+  `npm run typecheck`, `npm test` and `npm run build` pass in `frontend/`.
+  The parsing tests moved with the code into the shared package.
+- **Closes:** #145
+
+### Docs — Drips integration design — #146
+
+- **What:** Adds [`docs/drips-integration.md`](docs/drips-integration.md):
+  what Drips offers on Stellar, three candidate designs (the claimant
+  receives directly and then splits; the router sends a share to a
+  project's Drips list; Drips streams fund the bounty pool), their
+  trade-offs, a recommendation, and the contract changes each design would
+  need.
+- **Verified:** every command and link in the new doc was checked against
+  the repo and the Drips documentation.
+- **Closes:** #146
+
+### GitHub ↔ Stellar identity verification for claimants — #147
+
+- **What:** Adds a verification flow in which a claimant posts a message
+  signed with their Stellar key in a gist or PR comment, and a verifier
+  checks the signature against the claimed address. Verified links are
+  stored off-chain as JSON in the repo, and the trust model is documented
+  in `docs/`.
+- **Verified:** signature-verification tests pass; `cargo fmt`,
+  `cargo clippy -- -D warnings` and `cargo test --workspace` pass; all
+  commands and links in the new docs were checked.
+- **Closes:** #147
+
+### Contract — Drips share on release — #148
+
+- **What:** Following the design doc, `create_bounty` takes an optional
+  `drips_share_bps` and destination address. On `release`, that share of
+  the bounty is paid to the destination and the rest to the claimant; the
+  share is capped and emitted in the `released` event.
+- **Verified:** tests cover a 0% share, a typical share and the cap;
+  `cargo fmt`, `cargo clippy -- -D warnings` and `cargo test --workspace`
+  pass; contract test snapshots are updated and the wasm build succeeds.
+- **Closes:** #148
+
 ### CI — scan DepRadar's own lockfiles — #165
 
 - **What:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) gains a
