@@ -4,7 +4,7 @@ import { ScannerDetection } from "../components/ScannerDetection";
 import { AddressLink, CopyButton, Empty, ErrorState, Identicon, Skeleton, StatusBadge } from "../components/ui";
 import { NATIVE_XLM_SAC } from "../config";
 import { getBounty, listClaims } from "../lib/contract";
-import { formatAmount, formatDate, relativeTime, splitIssueRef, tokenSymbol } from "../lib/format";
+import { formatAmount, formatDate, refToUrl, relativeTime, splitIssueRef, tokenSymbol } from "../lib/format";
 import { bountyTimeline, type TimelineEvent } from "../lib/insights";
 import { bountyPackage } from "../lib/typosquat";
 import type { Bounty, Claim } from "../lib/types";
@@ -103,7 +103,7 @@ function Detail({ bounty, claims }: { bounty: Bounty; claims: Claim[] }) {
             <div>
               <dt>{t("bounty.findingRef")}</dt>
               <dd className="ref">
-                <code>{bounty.issueRef}</code>
+                <RefText refValue={bounty.issueRef} />
                 <CopyButton value={bounty.issueRef} />
               </dd>
             </div>
@@ -112,6 +112,16 @@ function Detail({ bounty, claims }: { bounty: Bounty; claims: Claim[] }) {
         </aside>
       </div>
     </>
+  );
+}
+
+function RefText({ refValue }: { refValue: string }) {
+  const url = refToUrl(refValue);
+  if (!url) return <code>{refValue}</code>;
+  return (
+    <a href={url} target="_blank" rel="noreferrer">
+      {refValue}
+    </a>
   );
 }
 
@@ -136,7 +146,9 @@ function TimelineItem({ event }: { event: TimelineEvent }) {
             <Identicon address={event.claim.claimant} />
             <div>
               <AddressLink address={event.claim.claimant} />
-              <p className="proof">{event.claim.proofRef}</p>
+              <p className="proof">
+                <RefText refValue={event.claim.proofRef} />
+              </p>
             </div>
           </div>
         )}
