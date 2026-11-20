@@ -10,6 +10,20 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### CI — Guard against conflict markers and pasted code fences — #282
+
+- **What:** Adds `scripts/check-source.sh`, a small Bash script that greps
+  every tracked `.rs`, `.ts`, and `.tsx` file for Git conflict markers
+  (`<<<<<<<`, `=======`, `>>>>>>>`) and Markdown code-fence delimiters
+  (` ``` `). The script exits non-zero if any pattern is found and prints the
+  offending filenames. It is added as the **first step** of the `lint` job in
+  `.github/workflows/ci.yml`, before the Rust toolchain is set up, so garbled
+  files are caught before the compiler runs.
+- **Verified:** The script passes on the current clean tree; introducing a
+  conflict marker into any `.rs` or `.ts` file causes the script to exit 1.
+- **By:** joshfatoye0011-bit
+- **Closes:** #282
+
 ### Docs — Architecture guide with sequence diagrams — #155
 
 - **What:** Adds [`docs/architecture.md`](docs/architecture.md) with Mermaid
