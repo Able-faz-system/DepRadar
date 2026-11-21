@@ -10,6 +10,17 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### Frontend — Code-split the Stellar SDK out of the initial bundle — #136
+
+- **What:** `frontend/src/App.tsx` now loads every page with `React.lazy`
+  behind a `Suspense` boundary, so `@stellar/stellar-sdk` (pulled in by
+  `lib/contract.ts`) is no longer part of the main chunk. The shell and
+  navigation render immediately while a page's chunk loads.
+- **Verified:** Not yet — build sizes before/after are to be reported from
+  `vite build` on the PR.
+- **By:** Farez Abel
+- **Closes:** #136
+
 ### CI — Guard against conflict markers and pasted code fences — #282
 
 - **What:** Adds `scripts/check-source.sh`, a small Bash script that greps
