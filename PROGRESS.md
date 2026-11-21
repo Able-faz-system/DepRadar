@@ -10,6 +10,18 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### Frontend — Paginate the bounty list — #124
+
+- **What:** The dashboard now loads 20 bounties at a time, newest first, with
+  a "Load more" button. `listBountiesPage()` in `frontend/src/lib/contract.ts`
+  pages over bounty IDs until the contract exposes a paginated getter. The
+  status filter, chip counts, hero stats and radar apply to the bounties
+  loaded so far.
+- **Verified:** Not run; no tests, lint, typecheck or build were executed for
+  this change.
+- **By:** olivia-brien
+- **Closes:** #124
+
 ### CI — Guard against conflict markers and pasted code fences — #282
 
 - **What:** Adds `scripts/check-source.sh`, a small Bash script that greps

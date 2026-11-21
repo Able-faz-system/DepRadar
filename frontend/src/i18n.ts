@@ -18,6 +18,9 @@ const resources = {
       board: {
         title: "Bounties",
         filterAria: "Filter bounties by status",
+        loadMore: "Load more",
+        loadingMore: "Loading…",
+        loadMoreError: "Couldn't load more bounties. Try again.",
       },
       filters: {
         all: "All",

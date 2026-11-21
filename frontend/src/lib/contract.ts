@@ -97,6 +97,30 @@ export async function listBounties(): Promise<Bounty[]> {
   return bounties.filter((b): b is Bounty => b !== null);
 }
 
+/** Bounties per page on the dashboard. */
+export const PAGE_SIZE = 20;
+
+export interface BountyPage {
+  bounties: Bounty[];
+  /** Pass as `beforeId` to fetch the following page; `null` on the last page. */
+  nextBeforeId: number | null;
+}
+
+/**
+ * One page of bounties, newest first. Pages over IDs until the contract
+ * exposes a paginated getter. `beforeId` is exclusive; omit it for the newest page.
+ */
+export async function listBountiesPage(beforeId?: number, limit = PAGE_SIZE): Promise<BountyPage> {
+  const top = beforeId ?? (await getBountyCount()) + 1;
+  const lowest = Math.max(1, top - limit);
+  const ids = Array.from({ length: Math.max(0, top - lowest) }, (_, i) => top - 1 - i);
+  const bounties = await Promise.all(ids.map(getBounty));
+  return {
+    bounties: bounties.filter((b): b is Bounty => b !== null),
+    nextBeforeId: lowest > 1 ? lowest : null,
+  };
+}
+
 /** Every claim on a bounty, in submission order. Claim IDs are `0..claim_count`. */
 export async function listClaims(bounty: Bounty): Promise<Claim[]> {
   const ids = Array.from({ length: bounty.claimCount }, (_, i) => i);
