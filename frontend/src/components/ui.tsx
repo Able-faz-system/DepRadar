@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { explorer } from "../config";
 import { friendlyError } from "../lib/errors";
 import { shortAddress } from "../lib/format";
@@ -35,12 +36,42 @@ export function Identicon({ address, size = 28 }: { address: string; size?: numb
 }
 
 export function AddressLink({ address, avatar = false }: { address: string; avatar?: boolean }) {
-  const href = address.startsWith("C") ? explorer.contract(address) : explorer.account(address);
-  return (
-    <a className="address" href={href} target="_blank" rel="noreferrer" title={address}>
+  const isContract = address.startsWith("C");
+  const explorerHref = isContract ? explorer.contract(address) : explorer.account(address);
+  const content = (
+    <>
       {avatar && <Identicon address={address} size={20} />}
       <span className="mono">{shortAddress(address)}</span>
-    </a>
+    </>
+  );
+
+  // Contract addresses (e.g. tokens) have no profile page, so they link straight to the explorer.
+  if (isContract) {
+    return (
+      <a className="address" href={explorerHref} target="_blank" rel="noreferrer" title={address}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <span className="address-link">
+      <Link className="address" to={`/address/${address}`} title={address}>
+        {content}
+      </Link>
+      <a
+        className="address-explorer"
+        href={explorerHref}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="View on Stellar Expert"
+        title="View on Stellar Expert"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <path d="M14 3h7v7M21 3l-9 9M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5" />
+        </svg>
+      </a>
+    </span>
   );
 }
 

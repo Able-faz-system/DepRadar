@@ -548,6 +548,32 @@ a.card:hover {
   gap: 0.4rem;
   vertical-align: middle;
 }
+.address-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.address-explorer {
+  color: var(--muted);
+  display: inline-flex;
+}
+.address-explorer:hover {
+  color: var(--teal);
+}
+.addr-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.4rem;
+  word-break: break-all;
+}
+.addr-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.6rem;
+}
 
 /* ─── Detail page ─────────────────────────────────────────────────────── */
 .back {

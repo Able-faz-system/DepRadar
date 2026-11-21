@@ -7,6 +7,7 @@ import { Empty, Loading } from "./components/ui";
 
 // Pages are lazy so the shell renders immediately and the Stellar SDK (pulled
 // in by the contract layer) loads only with the routes that need it.
+const Address = lazy(() => import("./pages/Address").then((m) => ({ default: m.Address })));
 const About = lazy(() => import("./pages/About").then((m) => ({ default: m.About })));
 const BountyDetail = lazy(() => import("./pages/BountyDetail").then((m) => ({ default: m.BountyDetail })));
 const BountyList = lazy(() => import("./pages/BountyList").then((m) => ({ default: m.BountyList })));
@@ -26,6 +27,7 @@ export default function App() {
               <Route path="bounty/:id" element={<BountyDetail />} />
               <Route path="leaderboard" element={<Leaderboard />} />
               <Route path="report" element={<Report />} />
+              <Route path="address/:id" element={<Address />} />
               <Route path="about" element={<About />} />
               <Route path="*" element={<Empty>{t("app.notFound")}</Empty>} />
             </Route>

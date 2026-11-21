@@ -10,6 +10,19 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### Frontend — Address profile page — #138
+
+- **What:** Adds `/address/:id` (`frontend/src/pages/Address.tsx`), listing
+  the bounties an account has funded and the claims it has submitted. It
+  scans all bounties with the contract getters, since there is no claimant
+  index yet. `AddressLink` now opens this page, with a small external-link
+  icon next to it for the explorer. Contract addresses (such as tokens) keep
+  linking straight to the explorer, since they have no profile.
+- **Verified:** Not yet — the component test (`Address.test.tsx`, with the
+  contract layer mocked) was written but not run.
+- **By:** Farez Abel
+- **Closes:** #138
+
 ### Frontend — Live deadline countdown and review-window indicator — #137
 
 - **What:** Open bounties on the detail page show a live countdown
