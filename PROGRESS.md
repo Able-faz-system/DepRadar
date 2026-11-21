@@ -10,6 +10,22 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### Frontend — Search bounties by finding text — #122
+
+- **What:** Adds a search input to the bounty board in
+  `frontend/src/pages/BountyList.tsx`. It filters by a case-insensitive
+  substring of `issueRef`, combined with the status filter chips. The input
+  is debounced by 150ms (`frontend/src/lib/useDebouncedValue.ts`). When nothing
+  matches it shows "No matches" with a clear button. Matching lives in
+  `frontend/src/lib/bountySearch.ts`. Adds a component test in
+  `frontend/src/pages/BountyList.test.tsx` covering match, no match and clear.
+- **Verified:** Not yet run. The component test and the lint, typecheck,
+  test and build steps have not been executed. `frontend/src/lib/contract.ts`
+  still imports from the missing `@deprader/contract-types` package, so the
+  page cannot build until that is resolved.
+- **By:** <github-username>
+- **Closes:** #122
+
 ### Docs — Document the contract's events — #121
 
 - **What:** Adds [`docs/events.md`](docs/events.md) with one table per event

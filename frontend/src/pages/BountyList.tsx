@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { BountyCard, BountyCardSkeleton } from "../components/BountyCard";
@@ -6,8 +7,12 @@ import { Empty, ErrorState, Skeleton } from "../components/ui";
 import { listBounties } from "../lib/contract";
 import { formatAmount } from "../lib/format";
 import { boardStats } from "../lib/insights";
+import { filterByIssueRef } from "../lib/bountySearch";
 import type { Bounty, BountyStatus } from "../lib/types";
 import { useAsync } from "../lib/useAsync";
+import { useDebouncedValue } from "../lib/useDebouncedValue";
+
+const SEARCH_DEBOUNCE_MS = 150;
 
 const FILTERS: { key: string; label: string; status?: BountyStatus }[] = [
   { key: "all", label: "filters.all" },
@@ -21,8 +26,12 @@ export function BountyList() {
   const state = useAsync(listBounties, "bounties");
   const [params, setParams] = useSearchParams();
   const filter = FILTERS.find((f) => f.key === params.get("status")) ?? FILTERS[0];
+  const [search, setSearch] = useState("");
+  const query = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
   const bounties = state.status === "success" ? state.data : [];
-  const shown = filter.status ? bounties.filter((b) => b.status === filter.status) : bounties;
+  const byStatus = filter.status ? bounties.filter((b) => b.status === filter.status) : bounties;
+  const shown = filterByIssueRef(byStatus, query);
+  const searching = query.trim() !== "";
 
   return (
     <>
@@ -63,6 +72,21 @@ export function BountyList() {
               );
             })}
           </div>
+          <div className="search-field">
+            <input
+              type="search"
+              className="search-input"
+              aria-label={t("board.searchLabel")}
+              placeholder={t("board.searchPlaceholder")}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search !== "" && (
+              <button type="button" className="btn search-clear" aria-label={t("board.searchClear")} onClick={() => setSearch("")}>
+                {t("board.searchClear")}
+              </button>
+            )}
+          </div>
         </div>
 
         {state.status === "loading" && (
@@ -92,6 +116,13 @@ export function BountyList() {
                     </li>
                   </ul>
                 </div>
+              </Empty>
+            ) : searching ? (
+              <Empty>
+                <p>{t("board.noMatches")}</p>
+                <button type="button" className="btn" onClick={() => setSearch("")}>
+                  {t("board.searchClear")}
+                </button>
               </Empty>
             ) : (
               <Empty>{t("empty.noneForFilter", { filter: t(filter.label).toLowerCase() })}</Empty>
