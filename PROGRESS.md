@@ -10,6 +10,18 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### Frontend — Live deadline countdown and review-window indicator — #137
+
+- **What:** Open bounties on the detail page show a live countdown
+  (`3d 4h left`) that refreshes every minute (`frontend/src/lib/useNow.ts`).
+  After the deadline, the page shows "Under review — creator can reclaim in
+  X", based on the 7-day `REVIEW_WINDOW_SECS` from the contract. Duration
+  and window helpers live in `frontend/src/lib/format.ts`, with boundary
+  tests at the deadline and the reclaim time.
+- **Verified:** Not yet — tests and build were not run for this change.
+- **By:** Farez Abel
+- **Closes:** #137
+
 ### Frontend — Code-split the Stellar SDK out of the initial bundle — #136
 
 - **What:** `frontend/src/App.tsx` now loads every page with `React.lazy`

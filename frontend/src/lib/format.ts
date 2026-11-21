@@ -113,3 +113,33 @@ export function parseIssueRef(ref: string): IssueRef | null {
 
   return { ecosystem, package: pkg, version, kind: kind as IssueKind, detail };
 }
+
+const MINUTE = 60;
+const HOUR = 3_600;
+const DAY = 86_400;
+
+/** Mirrors `REVIEW_WINDOW_SECS` in contracts/deprader_router/src/lib.rs. */
+export const REVIEW_WINDOW_SECS = 7 * DAY;
+
+/** "3d 4h", "4h 12m", "12m", or "<1m" — the two largest units of a duration. */
+export function formatDuration(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  if (s < MINUTE) return "<1m";
+  const d = Math.floor(s / DAY);
+  const h = Math.floor((s % DAY) / HOUR);
+  const m = Math.floor((s % HOUR) / MINUTE);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+/** "3d 4h left" until `target` (unix seconds), or null once it has been reached. */
+export function timeLeft(target: number, now = Date.now() / 1000): string | null {
+  const diff = target - now;
+  return diff > 0 ? `${formatDuration(diff)} left` : null;
+}
+
+/** Unix seconds at which the creator may reclaim an unpaid bounty. */
+export function reclaimAt(deadline: number): number {
+  return deadline + REVIEW_WINDOW_SECS;
+}

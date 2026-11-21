@@ -4,11 +4,22 @@ import { ScannerDetection } from "../components/ScannerDetection";
 import { AddressLink, CopyButton, Empty, ErrorState, Identicon, Skeleton, StatusBadge } from "../components/ui";
 import { NATIVE_XLM_SAC } from "../config";
 import { getBounty, listClaims } from "../lib/contract";
-import { formatAmount, formatDate, refToUrl, relativeTime, splitIssueRef, tokenSymbol } from "../lib/format";
+import {
+  formatAmount,
+  formatDate,
+  formatDuration,
+  refToUrl,
+  reclaimAt,
+  relativeTime,
+  splitIssueRef,
+  timeLeft,
+  tokenSymbol,
+} from "../lib/format";
 import { bountyTimeline, type TimelineEvent } from "../lib/insights";
 import { bountyPackage } from "../lib/typosquat";
 import type { Bounty, Claim } from "../lib/types";
 import { useAsync } from "../lib/useAsync";
+import { useNow } from "../lib/useNow";
 
 export function BountyDetail() {
   const { t } = useTranslation();
@@ -39,6 +50,8 @@ function Detail({ bounty, claims }: { bounty: Bounty; claims: Claim[] }) {
   const { ecosystem, text } = splitIssueRef(bounty.issueRef);
   const timeline = bountyTimeline(bounty, claims);
   const packageName = bountyPackage(bounty);
+  const now = useNow();
+  const pastDeadline = bounty.deadline <= now;
 
   return (
     <>
@@ -89,7 +102,9 @@ function Detail({ bounty, claims }: { bounty: Bounty; claims: Claim[] }) {
               <dt>{t("bounty.claimsClose")}</dt>
               <dd>
                 {formatDate(bounty.deadline)}
-                {bounty.status === "Open" && <span className="muted"> · {relativeTime(bounty.deadline)}</span>}
+                {bounty.status === "Open" && (
+                  <span className="muted"> · {timeLeft(bounty.deadline, now) ?? relativeTime(bounty.deadline, now)}</span>
+                )}
               </dd>
             </div>
             <div>
@@ -108,10 +123,21 @@ function Detail({ bounty, claims }: { bounty: Bounty; claims: Claim[] }) {
               </dd>
             </div>
           </dl>
+          {bounty.status === "Open" && pastDeadline && <ReviewNotice deadline={bounty.deadline} now={now} />}
           {packageName && <ScannerDetection name={packageName} />}
         </aside>
       </div>
     </>
+  );
+}
+
+/** Shown after the deadline while claims are still open to review. */
+function ReviewNotice({ deadline, now }: { deadline: number; now: number }) {
+  const reclaimIn = reclaimAt(deadline) - now;
+  return (
+    <p className="muted review-notice">
+      Under review — creator can reclaim {reclaimIn > 0 ? `in ${formatDuration(reclaimIn)}` : "now"}
+    </p>
   );
 }
 

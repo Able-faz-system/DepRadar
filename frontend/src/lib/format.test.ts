@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import { NATIVE_XLM_SAC } from "../config";
 import {
   formatAmount,
+  formatDuration,
   formatIssueRef,
   parseIssueRef,
+  reclaimAt,
   refToUrl,
   relativeTime,
+  REVIEW_WINDOW_SECS,
   shortAddress,
+  timeLeft,
   tokenSymbol,
   type IssueRef,
 } from "./format";
@@ -117,5 +121,42 @@ describe("refToUrl", () => {
     expect(refToUrl("data:text/html,<script>alert(1)</script>")).toBeNull();
     expect(refToUrl("http://example.com/proof")).toBeNull();
     expect(refToUrl("ftp://example.com/file")).toBeNull();
+  });
+});
+
+describe("formatDuration", () => {
+  it("uses the two largest units", () => {
+    expect(formatDuration(3 * 86_400 + 4 * 3_600 + 59)).toBe("3d 4h");
+    expect(formatDuration(4 * 3_600 + 12 * 60)).toBe("4h 12m");
+    expect(formatDuration(12 * 60)).toBe("12m");
+  });
+  it("shows <1m under a minute and clamps negatives", () => {
+    expect(formatDuration(59)).toBe("<1m");
+    expect(formatDuration(-5)).toBe("<1m");
+  });
+});
+
+describe("timeLeft", () => {
+  const deadline = 1_000_000;
+  it("counts down while the deadline is ahead", () => {
+    expect(timeLeft(deadline, deadline - 3 * 86_400 - 4 * 3_600)).toBe("3d 4h left");
+    expect(timeLeft(deadline, deadline - 1)).toBe("<1m left");
+  });
+  it("is null exactly at the deadline and after", () => {
+    expect(timeLeft(deadline, deadline)).toBeNull();
+    expect(timeLeft(deadline, deadline + 1)).toBeNull();
+  });
+});
+
+describe("review window", () => {
+  const deadline = 1_000_000;
+  it("is seven days after the deadline", () => {
+    expect(REVIEW_WINDOW_SECS).toBe(7 * 86_400);
+    expect(reclaimAt(deadline)).toBe(deadline + 7 * 86_400);
+  });
+  it("switches to reclaimable exactly at the boundary", () => {
+    const reclaim = reclaimAt(deadline);
+    expect(timeLeft(reclaim, reclaim - 1)).toBe("<1m left");
+    expect(timeLeft(reclaim, reclaim)).toBeNull();
   });
 });
