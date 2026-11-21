@@ -8,6 +8,7 @@ import { listBounties } from "../lib/contract";
 import { formatAmount } from "../lib/format";
 import { boardStats } from "../lib/insights";
 import { filterByIssueRef } from "../lib/bountySearch";
+import { DEFAULT_SORT, isSortKey, SORT_KEYS, sortBounties, type SortKey } from "../lib/bountySort";
 import type { Bounty, BountyStatus } from "../lib/types";
 import { useAsync } from "../lib/useAsync";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
@@ -30,8 +31,18 @@ export function BountyList() {
   const query = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
   const bounties = state.status === "success" ? state.data : [];
   const byStatus = filter.status ? bounties.filter((b) => b.status === filter.status) : bounties;
-  const shown = filterByIssueRef(byStatus, query);
+  const sortParam = params.get("sort");
+  const sortKey: SortKey = isSortKey(sortParam) ? sortParam : DEFAULT_SORT;
+  const shown = sortBounties(filterByIssueRef(byStatus, query), sortKey);
   const searching = query.trim() !== "";
+
+  /** Updates one query-string param, keeping the others (e.g. sort when a chip is clicked). */
+  const setParam = (key: string, value: string | null) => {
+    const next = new URLSearchParams(params);
+    if (value === null) next.delete(key);
+    else next.set(key, value);
+    setParams(next);
+  };
 
   return (
     <>
@@ -64,7 +75,7 @@ export function BountyList() {
                   role="tab"
                   aria-selected={f.key === filter.key}
                   className={`chip ${f.key === filter.key ? "chip-on" : ""}`}
-                  onClick={() => setParams(f.key === "all" ? {} : { status: f.key })}
+                  onClick={() => setParam("status", f.key === "all" ? null : f.key)}
                 >
                   {t(f.label)}
                   {state.status === "success" && <span className="chip-count">{count}</span>}
@@ -72,6 +83,18 @@ export function BountyList() {
               );
             })}
           </div>
+          <select
+            className="sort-select"
+            aria-label={t("board.sortLabel")}
+            value={sortKey}
+            onChange={(e) => setParam("sort", e.target.value === DEFAULT_SORT ? null : e.target.value)}
+          >
+            {SORT_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {t(`sort.${key}`)}
+              </option>
+            ))}
+          </select>
           <div className="search-field">
             <input
               type="search"

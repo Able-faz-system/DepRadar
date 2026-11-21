@@ -10,6 +10,23 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### Frontend — Sort the bounty board — #123
+
+- **What:** Adds a sort select next to the filter chips on the bounty board
+  (`frontend/src/pages/BountyList.tsx`) with four options: Newest, Highest
+  reward, Closing soon and Most claims. The choice is stored in the `sort` URL
+  param; the default (Newest) leaves the URL clean. Changing a status chip now
+  keeps the sort param. Sorting lives in `frontend/src/lib/bountySort.ts`,
+  which compares rewards as `bigint`. Adds unit tests in
+  `frontend/src/lib/bountySort.test.ts`, including amounts beyond
+  `Number.MAX_SAFE_INTEGER` and beyond 64 bits.
+- **Verified:** Not yet run. The unit tests and the lint, typecheck, test and
+  build steps have not been executed. `frontend/src/lib/contract.ts` still
+  imports from the missing `@deprader/contract-types` package, so the page
+  cannot build until that is resolved.
+- **By:** <github-username>
+- **Closes:** #123
+
 ### Frontend — Search bounties by finding text — #122
 
 - **What:** Adds a search input to the bounty board in

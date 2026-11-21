@@ -977,3 +977,11 @@ a.card:hover {
 .search-clear {
   padding: 0.35rem 0.6rem;
 }
+.sort-select {
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text-h);
+  font: inherit;
+}

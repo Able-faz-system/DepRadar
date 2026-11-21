@@ -22,6 +22,13 @@ const resources = {
         searchPlaceholder: "Search by package…",
         searchClear: "Clear search",
         noMatches: "No matches",
+        sortLabel: "Sort bounties",
+      },
+      sort: {
+        newest: "Newest",
+        reward: "Highest reward",
+        closing: "Closing soon",
+        claims: "Most claims",
       },
       filters: {
         all: "All",
