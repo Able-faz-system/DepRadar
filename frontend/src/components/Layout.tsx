@@ -7,6 +7,7 @@ import { WalletButton } from "../wallet/WalletButton";
 import { LanguageSelector } from "./LanguageSelector";
 
 const NAV_LINKS: { key: string; to?: string; href?: string; labelKey: string; className?: string }[] = [
+  { key: "new", to: "/new", labelKey: "nav.newBounty" },
   { key: "leaderboard", to: "/leaderboard", labelKey: "nav.leaderboard" },
   { key: "about", to: "/about", labelKey: "nav.about" },
   { key: "github", href: "https://github.com/DepRadarOrg/DepRadar", labelKey: "nav.github", className: "btn btn-ghost" },

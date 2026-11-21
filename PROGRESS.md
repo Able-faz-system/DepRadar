@@ -10,6 +10,20 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### Frontend — Create-bounty form — #126
+
+- **What:** Adds `/new`, a form for a finding reference, a reward in XLM, and
+  a deadline date (at most one year out). Submitting builds and simulates
+  `create_bounty` as the connected Freighter wallet, signs it, submits it,
+  waits for confirmation, then opens the new bounty. Validation in
+  `frontend/src/lib/newBounty.ts` mirrors the contract: amount > 0, reference
+  1–256 bytes, deadline within one year. The shared write path is
+  `frontend/src/lib/tx.ts`. The reward is paid in native XLM.
+- **Verified:** Not run; no tests, lint, typecheck or build were executed for
+  this change. No testnet transaction hash is recorded.
+- **By:** olivia-brien
+- **Closes:** #126
+
 ### Frontend — Connect a Freighter wallet — #125
 
 - **What:** Adds `@stellar/freighter-api` and a `WalletProvider` / `useWallet()`

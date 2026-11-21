@@ -8,6 +8,7 @@ const resources = {
         about: "About",
         leaderboard: "Leaderboard",
         github: "GitHub",
+        newBounty: "New bounty",
       },
       hero: {
         eyebrow: "Live on Stellar Testnet",
@@ -21,6 +22,17 @@ const resources = {
         loadMore: "Load more",
         loadingMore: "Loading…",
         loadMoreError: "Couldn't load more bounties. Try again.",
+      },
+      newBounty: {
+        title: "Create a bounty",
+        lede: "Fund a bounty for a finding in a package. Your wallet signs the transaction; the XLM is held until the bounty is paid or cancelled.",
+        connectFirst: "Connect your Freighter wallet to create a bounty.",
+        networkWarning: "Your wallet is on a different network from DepRadar. Switch networks in Freighter to continue.",
+        ref: "Finding reference",
+        amount: "Reward (XLM)",
+        deadline: "Claims close on",
+        submit: "Create bounty",
+        submitting: "Waiting for signature and confirmation…",
       },
       wallet: {
         install: "Install Freighter",

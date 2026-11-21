@@ -7,6 +7,7 @@ import { About } from "./pages/About";
 import { BountyDetail } from "./pages/BountyDetail";
 import { BountyList } from "./pages/BountyList";
 import { Leaderboard } from "./pages/Leaderboard";
+import { NewBounty } from "./pages/NewBounty";
 import { Report } from "./pages/Report";
 import { WalletProvider } from "./wallet/WalletContext";
 
@@ -20,6 +21,7 @@ export default function App() {
           <Routes>
             <Route element={<Layout />}>
               <Route index element={<BountyList />} />
+              <Route path="new" element={<NewBounty />} />
               <Route path="bounty/:id" element={<BountyDetail />} />
               <Route path="leaderboard" element={<Leaderboard />} />
               <Route path="report" element={<Report />} />
