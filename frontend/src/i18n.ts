@@ -22,6 +22,13 @@ const resources = {
         loadingMore: "Loading…",
         loadMoreError: "Couldn't load more bounties. Try again.",
       },
+      wallet: {
+        install: "Install Freighter",
+        connect: "Connect wallet",
+        connecting: "Connecting…",
+        disconnect: "Disconnect",
+        networkMismatch: "Wallet is on {{wallet}}, but DepRadar uses {{expected}}.",
+      },
       filters: {
         all: "All",
         open: "Open",

@@ -10,6 +10,18 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### Frontend — Connect a Freighter wallet — #125
+
+- **What:** Adds `@stellar/freighter-api` and a `WalletProvider` / `useWallet()`
+  context in `frontend/src/wallet/`. The top bar has a Connect button that shows
+  the short address and network once connected, and warns when the wallet's
+  network differs from `NETWORK`. An already-approved site reconnects on load;
+  if the extension is missing the button links to Freighter instead.
+- **Verified:** Not run; no tests, lint, typecheck or build were executed for
+  this change.
+- **By:** olivia-brien
+- **Closes:** #125
+
 ### Frontend — Paginate the bounty list — #124
 
 - **What:** The dashboard now loads 20 bounties at a time, newest first, with
