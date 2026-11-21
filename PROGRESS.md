@@ -10,6 +10,19 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### Frontend — Submit-claim form on the bounty page — #127
+
+- **What:** On open bounties, the bounty page shows a "Submit claim" form with
+  a proof reference. The form is disabled with an explanation when the wallet
+  is not connected, is on the wrong network, is the bounty's creator, the
+  deadline has passed, or the wallet already has a claim (`get_claim_id`).
+  Submitting builds, signs and submits `submit_claim` as the connected wallet,
+  then reloads the bounty and its claims. Shared write path: `frontend/src/lib/tx.ts`.
+- **Verified:** Not run; no tests, lint, typecheck or build were executed for
+  this change. No testnet transaction hash is recorded.
+- **By:** olivia-brien
+- **Closes:** #127
+
 ### Frontend — Create-bounty form — #126
 
 - **What:** Adds `/new`, a form for a finding reference, a reward in XLM, and

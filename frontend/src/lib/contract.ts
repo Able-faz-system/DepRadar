@@ -121,6 +121,12 @@ export async function listBountiesPage(beforeId?: number, limit = PAGE_SIZE): Pr
   };
 }
 
+/** The claim ID `claimant` holds on a bounty, or `null` if they haven't claimed. */
+export async function getClaimId(bountyId: number, claimant: string): Promise<number | null> {
+  const raw = await query("get_claim_id", { bounty_id: bountyId, claimant });
+  return raw == null ? null : Number(raw);
+}
+
 /** Every claim on a bounty, in submission order. Claim IDs are `0..claim_count`. */
 export async function listClaims(bounty: Bounty): Promise<Claim[]> {
   const ids = Array.from({ length: bounty.claimCount }, (_, i) => i);
