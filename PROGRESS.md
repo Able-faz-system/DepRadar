@@ -10,6 +10,21 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### Contract — Resource budget regression test — #120
+
+- **What:** Adds `test_resource_budget_for_bounty_lifecycle` to
+  `contracts/deprader_router/src/test.rs`. It resets
+  `env.cost_estimate().budget()` before `create_bounty`, `submit_claim` and
+  `release`, prints the measured CPU instructions and memory bytes for each,
+  and asserts they are under the ceilings. The ceilings are the Soroban
+  per-transaction network limits (100,000,000 CPU instructions and 40 MiB),
+  documented in a comment next to the constants.
+- **Verified:** Not yet run. The test was written without executing
+  `cargo test`, `cargo fmt`, `cargo clippy` or the wasm build. Measured
+  numbers, headroom and snapshot updates are still outstanding.
+- **By:** <github-username>
+- **Closes:** #120
+
 ### CI — Guard against conflict markers and pasted code fences — #282
 
 - **What:** Adds `scripts/check-source.sh`, a small Bash script that greps
