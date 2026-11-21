@@ -10,6 +10,18 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### CI — Deploy the dashboard to GitHub Pages — #139
+
+- **What:** Adds [`.github/workflows/pages.yml`](.github/workflows/pages.yml),
+  which builds `frontend/` on pushes to `main` (and on manual dispatch) and
+  deploys it with `actions/deploy-pages`. The build sets `VITE_SITE_URL` to
+  the Pages URL so the social-preview tags get an absolute image URL. The
+  live URL is added to the README's dashboard section.
+- **Verified:** Not yet — the workflow has not been run on a fork or on this
+  PR, and the live page has not been loaded.
+- **By:** Farez Abel
+- **Closes:** #139
+
 ### Frontend — Address profile page — #138
 
 - **What:** Adds `/address/:id` (`frontend/src/pages/Address.tsx`), listing

@@ -58,6 +58,9 @@ flowchart LR
   bounty and its claims, holds no authority, and needs no wallet. Run it
   with `cd frontend && npm ci && npm run dev`.
 
+  Live build: <https://depradarorg.github.io/DepRadar/> (deployed from `main`
+  by `.github/workflows/pages.yml`).
+
 ## Scanning a lockfile (CLI)
 
 The `depradar` binary scans a lockfile for typosquats and known
