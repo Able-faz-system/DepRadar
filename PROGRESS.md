@@ -10,6 +10,21 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Entries
 
+### Docs — Document the contract's events — #121
+
+- **What:** Adds [`docs/events.md`](docs/events.md) with one table per event
+  for `created`, `claimed`, `rejected`, `released`, `cancelled`, `admin_set`
+  and `admin_prp`: topics, data tuple and position, and what each value means.
+  The layouts were taken from the `publish` calls in
+  `contracts/deprader_router/src/lib.rs`. The page also lists the remaining
+  events by name. README's Documentation section links to the new page.
+- **Verified:** Not yet complete. The table layouts were checked against the
+  source only. The "example decoded from testnet" sections are placeholders
+  marked TODO, because they need a real testnet event. Links in the new page
+  have not been checked.
+- **By:** <github-username>
+- **Closes:** #121
+
 ### Contract — Resource budget regression test — #120
 
 - **What:** Adds `test_resource_budget_for_bounty_lifecycle` to
