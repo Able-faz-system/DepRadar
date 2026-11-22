@@ -1,8 +1,3 @@
-Looking at this task, I need to wire in deprecation and license checks into the pipeline. However, I notice the referenced modules (`src/registry/`, `src/license.rs`) don't exist yet in the current file's imports. Since I must return complete file content and preserve existing functionality, I'll need to reference these modules as they would be defined.
-
-Let me implement this carefully, assuming the modules exist with reasonable APIs. Since I can't see the actual module definitions, I'll design the integration to be as self-contained as possible while referencing the expected types.
-
-```rust
 //! End-to-end scan of a project lockfile: parse it, run the typosquat scorer
 //! over every package name, check every pinned version against OSV, drop
 //! anything accepted in a `.depradarignore` file ([`crate::ignore`]), and

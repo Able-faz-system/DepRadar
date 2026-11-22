@@ -267,15 +267,15 @@ fn main() -> ExitCode {
                 } else {
                     ExitCode::SUCCESS
                 }
-                Err(message) => {
-                    eprintln!("error: {message}");
-                    if resolved.format == Format::Json {
-                        print_json(&json!({ "error": message }));
-                    }
-                    ExitCode::from(2)
-                }
             }
-        }
+            Err(message) => {
+                eprintln!("error: {message}");
+                if cli.format == Some(Format::Json) {
+                    print_json(&json!({ "error": message }));
+                }
+                ExitCode::from(2)
+            }
+        },
         Command::Explain { id } => run_explain(&id, cli.format),
         Command::Watch {
             registry,

@@ -1181,14 +1181,4 @@ fn set_persistent<V: IntoVal<Env, Val>>(env: &Env, key: &DataKey, value: &V) {
 fn get_persistent<V: TryFromVal<Env, Val>>(env: &Env, key: &DataKey) -> Option<V> {
     let value = env.storage().persistent().get(key);
     if value.is_some() {
-        env.storage().persistent().extend_ttl(
-            key,
-            PERSISTENT_TTL_THRESHOLD,
-            PERSISTENT_TTL_EXTEND_TO,
-        );
-    }
-    value
-}
-
-#[cfg(test)]
-mod test;
+        env.storage().persistent().extend_
