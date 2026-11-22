@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 import { ScannerDetection } from "../components/ScannerDetection";
+import { SubmitClaim } from "../components/SubmitClaim";
 import { AddressLink, CopyButton, Empty, ErrorState, Identicon, Skeleton, StatusBadge } from "../components/ui";
 import { NATIVE_XLM_SAC } from "../config";
 import { getBounty, listClaims } from "../lib/contract";
@@ -40,12 +41,12 @@ export function BountyDetail() {
       {state.status === "loading" && <DetailSkeleton />}
       {state.status === "error" && <ErrorState error={state.error} onRetry={state.reload} />}
       {state.status === "success" && state.data === null && <Empty>{t("app.bountyMissing", { id: idParam })}</Empty>}
-      {state.status === "success" && state.data && <Detail bounty={state.data.bounty} claims={state.data.claims} />}
+      {state.status === "success" && state.data && <Detail bounty={state.data.bounty} claims={state.data.claims} onChanged={state.reload} />}
     </div>
   );
 }
 
-function Detail({ bounty, claims }: { bounty: Bounty; claims: Claim[] }) {
+function Detail({ bounty, claims, onChanged }: { bounty: Bounty; claims: Claim[]; onChanged: () => void }) {
   const { t } = useTranslation();
   const { ecosystem, text } = splitIssueRef(bounty.issueRef);
   const timeline = bountyTimeline(bounty, claims);
@@ -77,6 +78,7 @@ function Detail({ bounty, claims }: { bounty: Bounty; claims: Claim[] }) {
 
       <div className="detail-grid">
         <section>
+          {bounty.status === "Open" && <SubmitClaim bounty={bounty} onSubmitted={onChanged} />}
           <h2>{t("bounty.timeline")}</h2>
           <ol className="timeline">
             {timeline.map((e, i) => (
