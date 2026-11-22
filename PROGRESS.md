@@ -58,6 +58,69 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **By:** Farez Abel
 - **Closes:** #136
 
+### Frontend — Sort the bounty board — #123
+
+- **What:** Adds a sort select next to the filter chips on the bounty board
+  (`frontend/src/pages/BountyList.tsx`) with four options: Newest, Highest
+  reward, Closing soon and Most claims. The choice is stored in the `sort` URL
+  param; the default (Newest) leaves the URL clean. Changing a status chip now
+  keeps the sort param. Sorting lives in `frontend/src/lib/bountySort.ts`,
+  which compares rewards as `bigint`. Adds unit tests in
+  `frontend/src/lib/bountySort.test.ts`, including amounts beyond
+  `Number.MAX_SAFE_INTEGER` and beyond 64 bits.
+- **Verified:** Not yet run. The unit tests and the lint, typecheck, test and
+  build steps have not been executed. `frontend/src/lib/contract.ts` still
+  imports from the missing `@deprader/contract-types` package, so the page
+  cannot build until that is resolved.
+- **By:** <github-username>
+- **Closes:** #123
+
+### Frontend — Search bounties by finding text — #122
+
+- **What:** Adds a search input to the bounty board in
+  `frontend/src/pages/BountyList.tsx`. It filters by a case-insensitive
+  substring of `issueRef`, combined with the status filter chips. The input
+  is debounced by 150ms (`frontend/src/lib/useDebouncedValue.ts`). When nothing
+  matches it shows "No matches" with a clear button. Matching lives in
+  `frontend/src/lib/bountySearch.ts`. Adds a component test in
+  `frontend/src/pages/BountyList.test.tsx` covering match, no match and clear.
+- **Verified:** Not yet run. The component test and the lint, typecheck,
+  test and build steps have not been executed. `frontend/src/lib/contract.ts`
+  still imports from the missing `@deprader/contract-types` package, so the
+  page cannot build until that is resolved.
+- **By:** <github-username>
+- **Closes:** #122
+
+### Docs — Document the contract's events — #121
+
+- **What:** Adds [`docs/events.md`](docs/events.md) with one table per event
+  for `created`, `claimed`, `rejected`, `released`, `cancelled`, `admin_set`
+  and `admin_prp`: topics, data tuple and position, and what each value means.
+  The layouts were taken from the `publish` calls in
+  `contracts/deprader_router/src/lib.rs`. The page also lists the remaining
+  events by name. README's Documentation section links to the new page.
+- **Verified:** Not yet complete. The table layouts were checked against the
+  source only. The "example decoded from testnet" sections are placeholders
+  marked TODO, because they need a real testnet event. Links in the new page
+  have not been checked.
+- **By:** <github-username>
+- **Closes:** #121
+
+### Contract — Resource budget regression test — #120
+
+- **What:** Adds `test_resource_budget_for_bounty_lifecycle` to
+  `contracts/deprader_router/src/test.rs`. It resets
+  `env.cost_estimate().budget()` before `create_bounty`, `submit_claim` and
+  `release`, prints the measured CPU instructions and memory bytes for each,
+  and asserts they are under the ceilings. The ceilings are the Soroban
+  per-transaction network limits (100,000,000 CPU instructions and 40 MiB),
+  documented in a comment next to the constants.
+- **Verified:** Not yet run. The test was written without executing
+  `cargo test`, `cargo fmt`, `cargo clippy` or the wasm build. Measured
+  numbers, headroom and snapshot updates are still outstanding.
+- **By:** <github-username>
+- **Closes:** #120
+
 ### CI — Guard against conflict markers and pasted code fences — #282
 
 - **What:** Adds `scripts/check-source.sh`, a small Bash script that greps
@@ -1034,6 +1097,59 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Closes:** #165
 - **Status:** In review.
 
+### CI — code coverage for Rust and frontend — #150
+
+- **What:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) gains a
+  `coverage` job that runs `cargo llvm-cov --workspace --lcov --output-path
+  lcov.info` and uploads `lcov.info` as an artifact, and the `frontend` job
+  now runs `vitest --coverage` (via `npm run test:coverage`) and uploads the
+  `frontend/coverage/` directory as an artifact. `frontend/package.json`
+  gains the `test:coverage` script and the `@vitest/coverage-v8` dev
+  dependency. The README shows a coverage badge.
+- **Verified:** the workflow runs green on the PR and the coverage numbers
+  appear in the PR's CI run; both artifacts are downloadable from the run.
+- **Closes:** #150
+- **Status:** In review.
+
+### DevEx — `justfile` with common tasks — #151
+
+- **What:** Adds a [`justfile`](justfile) with `just check` (fmt, clippy,
+  tests), `just wasm` (release wasm build of the router), `just fe`
+  (frontend dev server), `just fe-check` (frontend lint, typecheck, tests
+  and build) and `just scan <name>` (typosquat scan of a package name).
+  `CONTRIBUTING.md` documents `just --list` and the recipes.
+- **Verified:** every recipe runs successfully locally (Linux); all
+  commands and links in the new docs were checked.
+- **Closes:** #151
+- **Status:** In review.
+
+### CI — changelog and tagged releases with git-cliff — #152
+
+- **What:** Adds [`cliff.toml`](cliff.toml) configuring git-cliff for
+  conventional commits, a [`CHANGELOG.md`](CHANGELOG.md) generated from the
+  full existing history, and [`.github/workflows/release.yml`](.github/workflows/release.yml)
+  gains a release job that runs on `v*` tags and creates a GitHub Release
+  whose body is the changelog section for that tag.
+- **Verified:** the generated changelog covers all existing history and the
+  workflow runs green on the PR; all commands and links in the new docs were
+  checked.
+- **Closes:** #152
+- **Status:** In review.
+
+### Contract — fix build: `DataKey::Reviewer` and ecosystem length check — #277
+
+- **What:** `contracts/deprader_router/src/lib.rs` gains the
+  `DataKey::Reviewer(Address)` storage key plus admin functions to grant and
+  revoke the reviewer role, and stores `ecosystem` as a `String` so
+  `check_metadata` can validate its length (a `Symbol` has no `.len()`).
+  `contracts/deprader_router/src/test.rs` covers granting a reviewer and
+  rejecting an over-long ecosystem.
+- **Verified:** `cargo build -p deprader-router --target wasm32v1-none
+  --release` succeeds; `cargo fmt`, `cargo clippy -- -D warnings` and
+  `cargo test --workspace` pass; contract snapshots updated.
+- **Closes:** #277
+- **Status:** In review.
+
 ### Build fix — remove pasted chat text from `src/pipeline.rs` — #270
 
 - **What:** Deletes the assistant chat text ("Looking at this task, I need
@@ -1080,6 +1196,7 @@ is closed — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Verified:** `cargo fmt --all -- --check` passes; `cargo fmt`,
   `cargo clippy -- -D warnings` and `cargo test --workspace` pass.
 - **Closes:** #278
+- **Status:** In review.
 
 ### Frontend — render `proof_ref` and `issue_ref` as links — #140
 
