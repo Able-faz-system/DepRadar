@@ -22,6 +22,17 @@ const resources = {
         loadMore: "Load more",
         loadingMore: "Loading…",
         loadMoreError: "Couldn't load more bounties. Try again.",
+        searchLabel: "Search bounties by package name",
+        searchPlaceholder: "Search by package…",
+        searchClear: "Clear search",
+        noMatches: "No matches",
+        sortLabel: "Sort bounties",
+      },
+      sort: {
+        newest: "Newest",
+        reward: "Highest reward",
+        closing: "Closing soon",
+        claims: "Most claims",
       },
       newBounty: {
         title: "Create a bounty",

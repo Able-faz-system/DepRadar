@@ -7,8 +7,13 @@ import { Empty, ErrorState, Skeleton } from "../components/ui";
 import { listBountiesPage, type BountyPage } from "../lib/contract";
 import { formatAmount } from "../lib/format";
 import { boardStats } from "../lib/insights";
+import { filterByIssueRef } from "../lib/bountySearch";
+import { DEFAULT_SORT, isSortKey, SORT_KEYS, sortBounties, type SortKey } from "../lib/bountySort";
 import type { Bounty, BountyStatus } from "../lib/types";
 import { useAsync } from "../lib/useAsync";
+import { useDebouncedValue } from "../lib/useDebouncedValue";
+
+const SEARCH_DEBOUNCE_MS = 150;
 
 const FILTERS: { key: string; label: string; status?: BountyStatus }[] = [
   { key: "all", label: "filters.all" },
@@ -25,11 +30,25 @@ export function BountyList() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreFailed, setLoadMoreFailed] = useState(false);
   const filter = FILTERS.find((f) => f.key === params.get("status")) ?? FILTERS[0];
+  const [search, setSearch] = useState("");
+  const query = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
 
   const firstPage = state.status === "success" ? state.data : null;
   const bounties = firstPage ? [...firstPage.bounties, ...more.flatMap((p) => p.bounties)] : [];
   const nextBeforeId = more.length > 0 ? more[more.length - 1].nextBeforeId : (firstPage?.nextBeforeId ?? null);
-  const shown = filter.status ? bounties.filter((b) => b.status === filter.status) : bounties;
+  const byStatus = filter.status ? bounties.filter((b) => b.status === filter.status) : bounties;
+  const sortParam = params.get("sort");
+  const sortKey: SortKey = isSortKey(sortParam) ? sortParam : DEFAULT_SORT;
+  const shown = sortBounties(filterByIssueRef(byStatus, query), sortKey);
+  const searching = query.trim() !== "";
+
+  /** Updates one query-string param, keeping the others (e.g. sort when a chip is clicked). */
+  const setParam = (key: string, value: string | null) => {
+    const next = new URLSearchParams(params);
+    if (value === null) next.delete(key);
+    else next.set(key, value);
+    setParams(next);
+  };
 
   function reload() {
     setMore([]);
@@ -82,13 +101,40 @@ export function BountyList() {
                   role="tab"
                   aria-selected={f.key === filter.key}
                   className={`chip ${f.key === filter.key ? "chip-on" : ""}`}
-                  onClick={() => setParams(f.key === "all" ? {} : { status: f.key })}
+                  onClick={() => setParam("status", f.key === "all" ? null : f.key)}
                 >
                   {t(f.label)}
                   {state.status === "success" && <span className="chip-count">{count}</span>}
                 </button>
               );
             })}
+          </div>
+          <select
+            className="sort-select"
+            aria-label={t("board.sortLabel")}
+            value={sortKey}
+            onChange={(e) => setParam("sort", e.target.value === DEFAULT_SORT ? null : e.target.value)}
+          >
+            {SORT_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {t(`sort.${key}`)}
+              </option>
+            ))}
+          </select>
+          <div className="search-field">
+            <input
+              type="search"
+              className="search-input"
+              aria-label={t("board.searchLabel")}
+              placeholder={t("board.searchPlaceholder")}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search !== "" && (
+              <button type="button" className="btn search-clear" aria-label={t("board.searchClear")} onClick={() => setSearch("")}>
+                {t("board.searchClear")}
+              </button>
+            )}
           </div>
         </div>
 
@@ -119,6 +165,13 @@ export function BountyList() {
                     </li>
                   </ul>
                 </div>
+              </Empty>
+            ) : searching ? (
+              <Empty>
+                <p>{t("board.noMatches")}</p>
+                <button type="button" className="btn" onClick={() => setSearch("")}>
+                  {t("board.searchClear")}
+                </button>
               </Empty>
             ) : (
               <Empty>{t("empty.noneForFilter", { filter: t(filter.label).toLowerCase() })}</Empty>

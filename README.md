@@ -5,6 +5,7 @@
 **A decentralized security scanner for open-source dependency graphs — funded bounties, not empty advisories.**
 
 [![CI](https://github.com/DepRadarOrg/DepRadar/actions/workflows/ci.yml/badge.svg)](https://github.com/DepRadarOrg/DepRadar/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-Rust%20%2B%20frontend-blue)](https://github.com/DepRadarOrg/DepRadar/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Network](https://img.shields.io/badge/network-Stellar%20Testnet-blue)](https://stellar.expert/explorer/testnet/contract/CCPRQANY467KKE4ROKCNW6TH3LY3EPVFRXIXJ5V4VCYHLJKWZPOZYQJQ)
 
@@ -281,6 +282,7 @@ verified, with the full trail auditable by anyone.
 - **[Threat Model](docs/threat-model.md)** — security properties, trust assumptions, known attacks and mitigations
 - **[Tutorial](docs/tutorial.md)** — report your first typosquat from scan to payout
 - **[FAQ](docs/FAQ.md)** — common questions about bounties, findings, and deployment
+- **[Contract events](docs/events.md)** — topic and data layout of each `deprader_router` event, for indexers and the dashboard
 - **[API Documentation](https://depradarorg.github.io/DepRadar/api/)** — Rust API docs for the scanner toolkit
 
 ## Status & Roadmap

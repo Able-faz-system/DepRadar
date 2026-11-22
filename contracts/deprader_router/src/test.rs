@@ -1,6 +1,7 @@
 use super::{
     BountyStatus, ClaimStatus, DepRaderRouter, DepRaderRouterClient, Error, MAX_BOUNTY_DURATION_SECS,
-    MAX_CLAIMS_PER_BOUNTY, MAX_DRIPS_SHARE_BPS, MAX_REF_LEN, REVIEW_WINDOW_SECS,
+    MAX_CLAIMS_PER_BOUNTY, MAX_DRIPS_SHARE_BPS, MAX_ECOSYSTEM_LEN, MAX_PACKAGE_LEN, MAX_REF_LEN,
+    REVIEW_WINDOW_SECS,
 };
 use crate::pool::{BountyPool, BountyPoolClient};
 use soroban_sdk::{
@@ -70,7 +71,7 @@ impl Setup<'_> {
             &AMOUNT,
             &self.token.address,
             &DEADLINE,
-            &Some(symbol_short!("rust")),
+            &Some(self.s("rust")),
             &Some(self.s("serde")),
             &Some(3),
         )
@@ -79,10 +80,11 @@ impl Setup<'_> {
     fn create_with_meta(
         &self,
         issue_ref: &str,
-        ecosystem: Option<Symbol>,
+        ecosystem: Option<&str>,
         package: Option<&str>,
         severity: Option<u32>,
     ) -> Result<u64, Error> {
+        let ecosystem = ecosystem.map(|e| self.s(e));
         let package = package.map(|p| self.s(p));
         self.client
             .try_create_bounty(
@@ -221,7 +223,7 @@ fn test_create_bounty_locks_funds_and_assigns_ids() {
     let bounty = t.client.get_bounty(&first).expect("bounty should exist");
     assert_eq!(bounty.creator, t.creator);
     assert_eq!(bounty.issue_ref, t.s("org/repo#123"));
-    assert_eq!(bounty.ecosystem, Some(symbol_short!("rust")));
+    assert_eq!(bounty.ecosystem, Some(t.s("rust")));
     assert_eq!(bounty.package, Some(t.s("serde")));
     assert_eq!(bounty.severity, Some(3));
     assert_eq!(bounty.amount, AMOUNT);
@@ -283,17 +285,12 @@ fn test_create_bounty_rejects_bad_input() {
 fn test_create_bounty_stores_structured_metadata() {
     let t = setup();
     let id = t
-        .create_with_meta(
-            "org/repo#7",
-            Some(symbol_short!("npm")),
-            Some("lodash"),
-            Some(9),
-        )
+        .create_with_meta("org/repo#7", Some("npm"), Some("lodash"), Some(9))
         .unwrap();
 
     let bounty = t.client.get_bounty(&id).unwrap();
     assert_eq!(bounty.issue_ref, t.s("org/repo#7"));
-    assert_eq!(bounty.ecosystem, Some(symbol_short!("npm")));
+    assert_eq!(bounty.ecosystem, Some(t.s("npm")));
     assert_eq!(bounty.package, Some(t.s("lodash")));
     assert_eq!(bounty.severity, Some(9));
 }
@@ -313,7 +310,7 @@ fn test_create_bounty_metadata_is_optional() {
 fn test_create_bounty_rejects_empty_metadata() {
     let t = setup();
     assert_eq!(
-        t.create_with_meta("org/repo#9", Some(symbol_short!("")), None, None),
+        t.create_with_meta("org/repo#9", Some(""), None, None),
         Err(Error::InvalidMetadata)
     );
     assert_eq!(
@@ -328,10 +325,9 @@ fn test_create_bounty_rejects_overlong_metadata() {
     let t = setup();
 
     let long_eco = "e".repeat(MAX_ECOSYSTEM_LEN + 1);
-    let eco_sym = Symbol::new(&t.env, &long_eco);
     assert_eq!(
-        t.create_with_meta("org/repo#10", Some(eco_sym), None, None),
-        Err(Error::InvalidMetadata)
+        t.create_with_meta("org/repo#10", Some(&long_eco), None, None),
+        Err(Error::InvalidReference)
     );
 
     let long_pkg = "p".repeat(MAX_PACKAGE_LEN + 1);
@@ -346,14 +342,54 @@ fn test_create_bounty_rejects_overlong_metadata() {
 fn test_create_bounty_still_validates_issue_ref() {
     let t = setup();
     assert_eq!(
-        t.create_with_meta("", Some(symbol_short!("go")), None, None),
+        t.create_with_meta("", Some("go"), None, None),
         Err(Error::InvalidReference)
     );
     let long = "a".repeat(257);
     assert_eq!(
-        t.create_with_meta(&long, Some(symbol_short!("go")), None, None),
+        t.create_with_meta(&long, Some("go"), None, None),
         Err(Error::InvalidReference)
     );
+}
+
+// ------------------------------------------------------------ reviewers
+
+#[test]
+fn test_admin_can_grant_and_revoke_reviewer() {
+    let t = setup();
+    let reviewer = Address::generate(&t.env);
+
+    assert!(!t.client.is_reviewer(&reviewer));
+
+    t.client.add_reviewer(&t.admin, &reviewer);
+    assert_eq!(t.last_auth(), t.admin);
+    assert!(t.client.is_reviewer(&reviewer));
+
+    t.client.remove_reviewer(&t.admin, &reviewer);
+    assert_eq!(t.last_auth(), t.admin);
+    assert!(!t.client.is_reviewer(&reviewer));
+}
+
+#[test]
+fn test_non_admin_cannot_grant_or_revoke_reviewer() {
+    let t = setup();
+    let reviewer = Address::generate(&t.env);
+    let stranger = Address::generate(&t.env);
+
+    t.env.set_auths(&[]);
+    assert!(t
+        .client
+        .try_add_reviewer(&stranger, &reviewer)
+        .is_err());
+    assert!(!t.client.is_reviewer(&reviewer));
+
+    t.client.add_reviewer(&t.admin, &reviewer);
+    t.env.set_auths(&[]);
+    assert!(t
+        .client
+        .try_remove_reviewer(&stranger, &reviewer)
+        .is_err());
+    assert!(t.client.is_reviewer(&reviewer));
 }
 
 // ------------------------------------------------------------- submit_claim
@@ -1279,6 +1315,9 @@ fn test_min_amount_defaults_to_zero() {
         &1,
         &t.token.address,
         &DEADLINE,
+        &None,
+        &None,
+        &None,
     );
     assert_eq!(bounty_id, 1);
 }
@@ -1307,6 +1346,9 @@ fn test_create_bounty_enforces_min_amount() {
             &amount,
             &t.token.address,
             &DEADLINE,
+            &None,
+            &None,
+            &None,
         )
     };
 
@@ -1338,6 +1380,9 @@ fn test_min_amount_is_per_token() {
         &1,
         &other,
         &DEADLINE,
+        &None,
+        &None,
+        &None,
     );
     assert_eq!(bounty_id, 1);
 }
@@ -1494,4 +1539,41 @@ fn test_pool_open_bounty_rejects_invalid_amount() {
     assert_eq!(t.open("org/repo#1", 0), Err(Error::InvalidAmount));
     assert_eq!(t.open("org/repo#1", -1), Err(Error::InvalidAmount));
     assert_eq!(t.pool.get_balance(), 500);
+}
+
+// ---- Resource budget regression -------------------------------------------
+//
+// Soroban caps every transaction at 100_000_000 CPU instructions and 40 MiB of
+// memory on the network. These ceilings are those network limits, so a call
+// that reaches them would fail on-chain. They are deliberately the hard limit,
+// not a tight bound: the printed numbers show how much headroom each call has,
+// and the ceilings can be lowered once the measured costs are known.
+const CPU_CEILING: u64 = 100_000_000;
+const MEM_CEILING: u64 = 40 * 1024 * 1024;
+
+/// Prints the cost of the last invocation and asserts it is under the ceilings.
+fn report_and_check_budget(env: &Env, call: &str) {
+    let budget = env.cost_estimate().budget();
+    let cpu = budget.cpu_instruction_cost();
+    let mem = budget.memory_bytes_cost();
+    println!("budget {call}: cpu_instructions={cpu} (ceiling {CPU_CEILING}), memory_bytes={mem} (ceiling {MEM_CEILING})");
+    assert!(cpu < CPU_CEILING, "{call} used {cpu} CPU instructions, ceiling is {CPU_CEILING}");
+    assert!(mem < MEM_CEILING, "{call} used {mem} memory bytes, ceiling is {MEM_CEILING}");
+}
+
+#[test]
+fn test_resource_budget_for_bounty_lifecycle() {
+    let t = setup();
+
+    t.env.cost_estimate().budget().reset_default();
+    let bounty_id = t.create();
+    report_and_check_budget(&t.env, "create_bounty");
+
+    t.env.cost_estimate().budget().reset_default();
+    let (_claimant, claim_id) = t.claim(bounty_id);
+    report_and_check_budget(&t.env, "submit_claim");
+
+    t.env.cost_estimate().budget().reset_default();
+    t.client.release(&t.admin, &bounty_id, &claim_id);
+    report_and_check_budget(&t.env, "release");
 }
